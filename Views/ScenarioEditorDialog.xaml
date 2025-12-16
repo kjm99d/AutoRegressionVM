@@ -93,10 +93,19 @@
                             <TextBox Grid.Row="0" Grid.Column="1" x:Name="txtStepName" Margin="0,0,0,5"/>
 
                             <TextBlock Grid.Row="1" Text="대상 VM:" VerticalAlignment="Center"/>
-                            <ComboBox Grid.Row="1" Grid.Column="1" x:Name="cboTargetVM" DisplayMemberPath="Name" Margin="0,0,0,5"/>
+                            <ComboBox Grid.Row="1" Grid.Column="1" x:Name="cboTargetVM" DisplayMemberPath="Name" Margin="0,0,0,5"
+                                      SelectionChanged="TargetVM_SelectionChanged"/>
 
-                            <TextBlock Grid.Row="2" Text="스냅샷 이름:" VerticalAlignment="Center"/>
-                            <TextBox Grid.Row="2" Grid.Column="1" x:Name="txtSnapshotName" Margin="0,0,0,5"/>
+                            <TextBlock Grid.Row="2" Text="스냅샷:" VerticalAlignment="Center"/>
+                            <Grid Grid.Row="2" Grid.Column="1" Margin="0,0,0,5">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <ComboBox x:Name="cboSnapshot" DisplayMemberPath="Name" Margin="0,0,5,0"/>
+                                <Button Grid.Column="1" x:Name="btnRefreshSnapshots" Content="↻" Width="26"
+                                        Click="RefreshSnapshots_Click" ToolTip="스냅샷 목록 새로고침"/>
+                            </Grid>
                         </Grid>
                     </GroupBox>
 

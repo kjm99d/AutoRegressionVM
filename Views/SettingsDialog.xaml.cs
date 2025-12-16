@@ -271,6 +271,12 @@ namespace AutoRegressionVM.Views
 
         private async void ImportFromVMware_Click(object sender, RoutedEventArgs e)
         {
+            if (!_vmwareService.IsConnected)
+            {
+                MessageBox.Show("먼저 VMware에 연결하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
             try
             {
                 var vms = await _vmwareService.GetRegisteredVMsAsync();

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using AutoRegressionVM.Models;
+using AutoRegressionVM.Services.VMware;
 
 namespace AutoRegressionVM.Views
 {
@@ -14,17 +15,22 @@ namespace AutoRegressionVM.Views
 
         private readonly ObservableCollection<VMInfo> _availableVMs;
         private readonly ObservableCollection<TestStep> _steps = new ObservableCollection<TestStep>();
+        private readonly IVMwareService _vmwareService;
+        private readonly ObservableCollection<Snapshot> _snapshots = new ObservableCollection<Snapshot>();
         private TestStep _currentStep;
         private bool _isEditing;
         private string _existingId;
         private DateTime _existingCreatedAt;
+        private bool _isLoadingStep;
 
-        public ScenarioEditorDialog(IEnumerable<VMInfo> availableVMs, TestScenario existingScenario = null)
+        public ScenarioEditorDialog(IEnumerable<VMInfo> availableVMs, TestScenario existingScenario = null, IVMwareService vmwareService = null)
         {
             InitializeComponent();
 
+            _vmwareService = vmwareService;
             _availableVMs = new ObservableCollection<VMInfo>(availableVMs);
             cboTargetVM.ItemsSource = _availableVMs;
+            cboSnapshot.ItemsSource = _snapshots;
             lstSteps.ItemsSource = _steps;
 
             if (existingScenario != null)
@@ -67,13 +73,40 @@ namespace AutoRegressionVM.Views
             }
         }
 
-        private void LoadStepToUI(TestStep step)
+        private async void LoadStepToUI(TestStep step)
         {
-            txtStepName.Text = step.Name;
-            txtSnapshotName.Text = step.SnapshotName;
+            _isLoadingStep = true;
+            try
+            {
+                txtStepName.Text = step.Name;
 
-            var vm = _availableVMs.FirstOrDefault(v => v.VmxPath == step.TargetVmxPath);
-            cboTargetVM.SelectedItem = vm;
+                var vm = _availableVMs.FirstOrDefault(v => v.VmxPath == step.TargetVmxPath);
+                cboTargetVM.SelectedItem = vm;
+
+                // VM이 선택되어 있으면 스냅샷 목록 로드
+                if (vm != null)
+                {
+                    await LoadSnapshotsAsync(vm.VmxPath);
+                }
+
+                // 저장된 스냅샷 선택
+                var snapshot = _snapshots.FirstOrDefault(s => s.Name == step.SnapshotName);
+                if (snapshot != null)
+                {
+                    cboSnapshot.SelectedItem = snapshot;
+                }
+                else if (!string.IsNullOrEmpty(step.SnapshotName))
+                {
+                    // 목록에 없으면 임시로 추가
+                    var tempSnapshot = new Snapshot { Name = step.SnapshotName };
+                    _snapshots.Add(tempSnapshot);
+                    cboSnapshot.SelectedItem = tempSnapshot;
+                }
+            }
+            finally
+            {
+                _isLoadingStep = false;
+            }
 
             dgFilesToVM.ItemsSource = new ObservableCollection<FileCopyInfo>(step.FilesToCopyToVM ?? new List<FileCopyInfo>());
             dgResultFiles.ItemsSource = new ObservableCollection<FileCopyInfo>(step.ResultFilesToCollect ?? new List<FileCopyInfo>());
@@ -97,7 +130,9 @@ namespace AutoRegressionVM.Views
             if (_currentStep == null) return;
 
             _currentStep.Name = txtStepName.Text;
-            _currentStep.SnapshotName = txtSnapshotName.Text;
+
+            var selectedSnapshot = cboSnapshot.SelectedItem as Snapshot;
+            _currentStep.SnapshotName = selectedSnapshot?.Name ?? "";
 
             var selectedVM = cboTargetVM.SelectedItem as VMInfo;
             _currentStep.TargetVmxPath = selectedVM?.VmxPath;
@@ -221,6 +256,64 @@ namespace AutoRegressionVM.Views
         {
             DialogResult = false;
             Close();
+        }
+
+        private async void TargetVM_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isLoadingStep) return;
+
+            var selectedVM = cboTargetVM.SelectedItem as VMInfo;
+            if (selectedVM != null)
+            {
+                await LoadSnapshotsAsync(selectedVM.VmxPath);
+            }
+            else
+            {
+                _snapshots.Clear();
+            }
+        }
+
+        private async void RefreshSnapshots_Click(object sender, RoutedEventArgs e)
+        {
+            var selectedVM = cboTargetVM.SelectedItem as VMInfo;
+            if (selectedVM == null)
+            {
+                MessageBox.Show("먼저 VM을 선택하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            await LoadSnapshotsAsync(selectedVM.VmxPath);
+        }
+
+        private async System.Threading.Tasks.Task LoadSnapshotsAsync(string vmxPath)
+        {
+            _snapshots.Clear();
+
+            if (_vmwareService == null || !_vmwareService.IsConnected)
+            {
+                return;
+            }
+
+            try
+            {
+                btnRefreshSnapshots.IsEnabled = false;
+                btnRefreshSnapshots.Content = "...";
+
+                var snapshots = await _vmwareService.GetSnapshotsAsync(vmxPath);
+                foreach (var snapshot in snapshots)
+                {
+                    _snapshots.Add(snapshot);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"스냅샷 로드 실패: {ex.Message}");
+            }
+            finally
+            {
+                btnRefreshSnapshots.IsEnabled = true;
+                btnRefreshSnapshots.Content = "↻";
+            }
         }
     }
 }

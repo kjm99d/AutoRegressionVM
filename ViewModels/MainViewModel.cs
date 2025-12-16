@@ -274,7 +274,7 @@ namespace AutoRegressionVM.ViewModels
 
         private void CreateNewScenario()
         {
-            var dialog = new ScenarioEditorDialog(VMs)
+            var dialog = new ScenarioEditorDialog(VMs, null, _vmwareService)
             {
                 Owner = Application.Current.MainWindow
             };
@@ -292,7 +292,7 @@ namespace AutoRegressionVM.ViewModels
         {
             if (SelectedScenario == null) return;
 
-            var dialog = new ScenarioEditorDialog(VMs, SelectedScenario)
+            var dialog = new ScenarioEditorDialog(VMs, SelectedScenario, _vmwareService)
             {
                 Owner = Application.Current.MainWindow
             };
