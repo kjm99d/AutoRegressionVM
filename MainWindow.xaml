@@ -73,6 +73,19 @@
                     <TextBlock Text="설정"/>
                 </StackPanel>
             </Button>
+            <Separator Margin="10,0"/>
+            <Button Command="{Binding ViewHistoryCommand}" Padding="10,5" Margin="2">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="📊" Margin="0,0,5,0"/>
+                    <TextBlock Text="이력"/>
+                </StackPanel>
+            </Button>
+            <Button Command="{Binding ExportReportCommand}" Padding="10,5" Margin="2">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="📄" Margin="0,0,5,0"/>
+                    <TextBlock Text="리포트"/>
+                </StackPanel>
+            </Button>
         </ToolBar>
 
         <!-- 메인 콘텐츠 -->
@@ -90,8 +103,9 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <ListBox ItemsSource="{Binding VMs}" 
+                    <ListBox ItemsSource="{Binding VMs}"
                              SelectedItem="{Binding SelectedVM}"
                              Margin="5">
                         <ListBox.ItemTemplate>
@@ -103,6 +117,43 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+
+                    <!-- 병렬 실행 상태 모니터 -->
+                    <ItemsControl Grid.Row="1" ItemsSource="{Binding VMExecutionStatuses}"
+                                  Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}"
+                                  Margin="5,0,5,5">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="LightGray" BorderThickness="1" Margin="0,2" Padding="5">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Ellipse Width="8" Height="8" Margin="0,0,5,0">
+                                                <Ellipse.Style>
+                                                    <Style TargetType="Ellipse">
+                                                        <Setter Property="Fill" Value="Gray"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                                <Setter Property="Fill" Value="#4CAF50"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </Ellipse.Style>
+                                            </Ellipse>
+                                            <TextBlock Text="{Binding VMName}" FontWeight="SemiBold" FontSize="11"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Row="1">
+                                            <TextBlock Text="{Binding PhaseText}" FontSize="10" Foreground="Gray"/>
+                                            <ProgressBar Height="4" Value="{Binding Progress}" Maximum="100" Margin="0,2,0,0"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                     <TextBlock Text="VM을 추가하세요" 
                                HorizontalAlignment="Center" 
                                VerticalAlignment="Center"

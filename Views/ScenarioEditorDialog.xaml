@@ -54,7 +54,12 @@
                     </Grid.RowDefinitions>
 
                     <ListBox x:Name="lstSteps" DisplayMemberPath="Name"
-                             SelectionChanged="StepList_SelectionChanged"/>
+                             SelectionChanged="StepList_SelectionChanged"
+                             AllowDrop="True"
+                             PreviewMouseLeftButtonDown="StepList_PreviewMouseLeftButtonDown"
+                             PreviewMouseMove="StepList_PreviewMouseMove"
+                             Drop="StepList_Drop"
+                             DragOver="StepList_DragOver"/>
 
                     <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,5">
                         <Button Content="추가" Click="AddStep_Click" Width="50" Margin="2"/>
@@ -69,6 +74,7 @@
             <ScrollViewer Grid.Column="1" x:Name="stepEditor" Margin="10,0,0,0">
                 <Grid x:Name="gridStepDetail" IsEnabled="False">
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
@@ -111,12 +117,22 @@
 
                     <!-- 파일 복사 (호스트 -> VM) -->
                     <GroupBox Grid.Row="1" Header="파일 복사 (호스트 → VM)" Margin="0,0,0,10">
-                        <DataGrid x:Name="dgFilesToVM" AutoGenerateColumns="False" Height="100" CanUserAddRows="True">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="소스 경로" Binding="{Binding SourcePath}" Width="*"/>
-                                <DataGridTextColumn Header="대상 경로" Binding="{Binding DestinationPath}" Width="*"/>
-                            </DataGrid.Columns>
-                        </DataGrid>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <DataGrid x:Name="dgFilesToVM" AutoGenerateColumns="False" Height="100" CanUserAddRows="True">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="소스 경로 (호스트)" Binding="{Binding SourcePath}" Width="*"/>
+                                    <DataGridTextColumn Header="대상 경로 (VM)" Binding="{Binding DestinationPath}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,5,0,0">
+                                <Button Content="파일 추가" Click="AddFileToVM_Click" Width="70" Margin="0,0,5,0"/>
+                                <Button Content="폴더 추가" Click="AddFolderToVM_Click" Width="70"/>
+                            </StackPanel>
+                        </Grid>
                     </GroupBox>
 
                     <!-- 실행 설정 -->
@@ -141,7 +157,14 @@
                             </ComboBox>
 
                             <TextBlock Grid.Row="1" Text="실행 경로:" VerticalAlignment="Center"/>
-                            <TextBox Grid.Row="1" Grid.Column="1" x:Name="txtExecPath" Margin="0,0,0,5"/>
+                            <Grid Grid.Row="1" Grid.Column="1" Margin="0,0,0,5">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="txtExecPath" Margin="0,0,5,0"/>
+                                <Button Grid.Column="1" Content="..." Width="26" Click="BrowseExecPath_Click" ToolTip="파일 찾아보기"/>
+                            </Grid>
 
                             <TextBlock Grid.Row="2" Text="인수:" VerticalAlignment="Center"/>
                             <TextBox Grid.Row="2" Grid.Column="1" x:Name="txtExecArgs" Margin="0,0,0,5"/>
@@ -153,16 +176,52 @@
 
                     <!-- 결과 파일 수집 -->
                     <GroupBox Grid.Row="3" Header="결과 파일 수집 (VM → 호스트)" Margin="0,0,0,10">
-                        <DataGrid x:Name="dgResultFiles" AutoGenerateColumns="False" Height="100" CanUserAddRows="True">
-                            <DataGrid.Columns>
-                                <DataGridTextColumn Header="VM 경로" Binding="{Binding SourcePath}" Width="*"/>
-                                <DataGridTextColumn Header="호스트 경로" Binding="{Binding DestinationPath}" Width="*"/>
-                            </DataGrid.Columns>
-                        </DataGrid>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <DataGrid x:Name="dgResultFiles" AutoGenerateColumns="False" Height="100" CanUserAddRows="True">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="소스 경로 (VM)" Binding="{Binding SourcePath}" Width="*"/>
+                                    <DataGridTextColumn Header="대상 경로 (호스트)" Binding="{Binding DestinationPath}" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,5,0,0">
+                                <Button Content="대상 폴더 선택" Click="SelectResultFolder_Click" Width="100"/>
+                            </StackPanel>
+                        </Grid>
+                    </GroupBox>
+
+                    <!-- 조건부 실행 -->
+                    <GroupBox Grid.Row="4" Header="실행 조건" Margin="0,0,0,10">
+                        <Grid Margin="10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Row="0" Text="실행 조건:" VerticalAlignment="Center"/>
+                            <ComboBox Grid.Row="0" Grid.Column="1" x:Name="cboConditionType" Margin="0,0,0,5" SelectionChanged="ConditionType_SelectionChanged">
+                                <ComboBoxItem Content="항상 실행" IsSelected="True"/>
+                                <ComboBoxItem Content="이전 스텝 성공 시"/>
+                                <ComboBoxItem Content="이전 스텝 실패 시"/>
+                                <ComboBoxItem Content="특정 스텝 결과에 따라"/>
+                                <ComboBoxItem Content="모든 이전 스텝 성공 시"/>
+                                <ComboBoxItem Content="하나라도 실패 시"/>
+                            </ComboBox>
+
+                            <TextBlock Grid.Row="1" Text="참조 스텝:" VerticalAlignment="Center" x:Name="lblRefStep" Visibility="Collapsed"/>
+                            <ComboBox Grid.Row="1" Grid.Column="1" x:Name="cboRefStep" DisplayMemberPath="Name" Visibility="Collapsed"/>
+                        </Grid>
                     </GroupBox>
 
                     <!-- 기타 옵션 -->
-                    <GroupBox Grid.Row="4" Header="옵션">
+                    <GroupBox Grid.Row="5" Header="옵션">
                         <StackPanel Margin="10">
                             <CheckBox x:Name="chkForceNetworkDisconnect" Content="네트워크 강제 분리" IsChecked="True" Margin="0,0,0,5"/>
                             <CheckBox x:Name="chkForceSnapshotRevert" Content="완료 후 스냅샷 복원" IsChecked="True" Margin="0,0,0,5"/>

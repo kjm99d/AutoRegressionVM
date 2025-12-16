@@ -1,11 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using AutoRegressionVM.Models;
 using AutoRegressionVM.Services.VMware;
+using Microsoft.Win32;
 
 namespace AutoRegressionVM.Views
 {
@@ -22,6 +26,8 @@ namespace AutoRegressionVM.Views
         private string _existingId;
         private DateTime _existingCreatedAt;
         private bool _isLoadingStep;
+        private Point _dragStartPoint;
+        private bool _isDragging;
 
         public ScenarioEditorDialog(IEnumerable<VMInfo> availableVMs, TestScenario existingScenario = null, IVMwareService vmwareService = null)
         {
@@ -123,6 +129,34 @@ namespace AutoRegressionVM.Views
             chkForceSnapshotRevert.IsChecked = step.ForceSnapshotRevertAfter;
             chkCaptureScreenshots.IsChecked = step.CaptureScreenshots;
             txtScreenshotInterval.Text = step.ScreenshotIntervalSeconds.ToString();
+
+            // 조건부 실행 로드
+            LoadConditionToUI(step);
+        }
+
+        private void LoadConditionToUI(TestStep step)
+        {
+            // 참조 스텝 목록 갱신
+            var currentIndex = _steps.IndexOf(step);
+            var previousSteps = _steps.Take(currentIndex).ToList();
+            cboRefStep.ItemsSource = previousSteps;
+
+            if (step.Condition != null)
+            {
+                cboConditionType.SelectedIndex = (int)step.Condition.Type;
+
+                if (!string.IsNullOrEmpty(step.Condition.ReferenceStepId))
+                {
+                    var refStep = previousSteps.FirstOrDefault(s => s.Id == step.Condition.ReferenceStepId);
+                    cboRefStep.SelectedItem = refStep;
+                }
+            }
+            else
+            {
+                cboConditionType.SelectedIndex = 0;
+            }
+
+            UpdateConditionVisibility();
         }
 
         private void SaveCurrentStep()
@@ -155,6 +189,9 @@ namespace AutoRegressionVM.Views
             _currentStep.ForceSnapshotRevertAfter = chkForceSnapshotRevert.IsChecked ?? true;
             _currentStep.CaptureScreenshots = chkCaptureScreenshots.IsChecked ?? false;
             _currentStep.ScreenshotIntervalSeconds = int.TryParse(txtScreenshotInterval.Text, out var interval) ? interval : 10;
+
+            // 조건부 실행 저장
+            SaveCondition();
 
             // Refresh list display
             var index = _steps.IndexOf(_currentStep);
@@ -315,5 +352,249 @@ namespace AutoRegressionVM.Views
                 btnRefreshSnapshots.Content = "↻";
             }
         }
+
+        private void BrowseExecPath_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "실행 파일 선택",
+                Filter = "실행 파일 (*.exe;*.bat;*.cmd;*.ps1)|*.exe;*.bat;*.cmd;*.ps1|모든 파일 (*.*)|*.*"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                txtExecPath.Text = dialog.FileName;
+            }
+        }
+
+        private void AddFileToVM_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "VM에 복사할 파일 선택",
+                Multiselect = true
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                var files = dgFilesToVM.ItemsSource as ObservableCollection<FileCopyInfo>;
+                if (files == null)
+                {
+                    files = new ObservableCollection<FileCopyInfo>();
+                    dgFilesToVM.ItemsSource = files;
+                }
+
+                foreach (var file in dialog.FileNames)
+                {
+                    files.Add(new FileCopyInfo
+                    {
+                        SourcePath = file,
+                        DestinationPath = $"C:\\Test\\{Path.GetFileName(file)}"
+                    });
+                }
+            }
+        }
+
+        private void AddFolderToVM_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new System.Windows.Forms.FolderBrowserDialog
+            {
+                Description = "VM에 복사할 폴더 선택"
+            };
+
+            if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                var files = dgFilesToVM.ItemsSource as ObservableCollection<FileCopyInfo>;
+                if (files == null)
+                {
+                    files = new ObservableCollection<FileCopyInfo>();
+                    dgFilesToVM.ItemsSource = files;
+                }
+
+                var folderName = Path.GetFileName(dialog.SelectedPath);
+                files.Add(new FileCopyInfo
+                {
+                    SourcePath = dialog.SelectedPath,
+                    DestinationPath = $"C:\\Test\\{folderName}"
+                });
+            }
+        }
+
+        private void SelectResultFolder_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new System.Windows.Forms.FolderBrowserDialog
+            {
+                Description = "결과 파일 저장 폴더 선택"
+            };
+
+            if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                var files = dgResultFiles.ItemsSource as ObservableCollection<FileCopyInfo>;
+                if (files == null)
+                {
+                    files = new ObservableCollection<FileCopyInfo>();
+                    dgResultFiles.ItemsSource = files;
+                }
+
+                // 선택한 폴더를 대상 경로로 추가 (소스 경로는 사용자가 직접 입력)
+                files.Add(new FileCopyInfo
+                {
+                    SourcePath = "C:\\Test\\결과.txt",
+                    DestinationPath = Path.Combine(dialog.SelectedPath, "{VMName}_{StepName}_{Timestamp}")
+                });
+            }
+        }
+
+        private void SaveCondition()
+        {
+            if (_currentStep == null) return;
+
+            var conditionType = (ConditionType)cboConditionType.SelectedIndex;
+
+            if (conditionType == ConditionType.Always)
+            {
+                _currentStep.Condition = null;
+            }
+            else
+            {
+                _currentStep.Condition = new StepCondition
+                {
+                    Type = conditionType
+                };
+
+                if (conditionType == ConditionType.SpecificStepResult)
+                {
+                    var refStep = cboRefStep.SelectedItem as TestStep;
+                    if (refStep != null)
+                    {
+                        _currentStep.Condition.ReferenceStepId = refStep.Id;
+                        _currentStep.Condition.ReferenceStepName = refStep.Name;
+                    }
+                }
+            }
+        }
+
+        private void ConditionType_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            UpdateConditionVisibility();
+        }
+
+        private void UpdateConditionVisibility()
+        {
+            if (cboConditionType == null || lblRefStep == null || cboRefStep == null) return;
+
+            var showRefStep = cboConditionType.SelectedIndex == (int)ConditionType.SpecificStepResult;
+            lblRefStep.Visibility = showRefStep ? Visibility.Visible : Visibility.Collapsed;
+            cboRefStep.Visibility = showRefStep ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        #region Drag and Drop
+
+        private void StepList_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _dragStartPoint = e.GetPosition(null);
+            _isDragging = false;
+        }
+
+        private void StepList_PreviewMouseMove(object sender, MouseEventArgs e)
+        {
+            if (e.LeftButton != MouseButtonState.Pressed || _isDragging)
+                return;
+
+            var currentPosition = e.GetPosition(null);
+            var diff = _dragStartPoint - currentPosition;
+
+            if (Math.Abs(diff.X) > SystemParameters.MinimumHorizontalDragDistance ||
+                Math.Abs(diff.Y) > SystemParameters.MinimumVerticalDragDistance)
+            {
+                var listBox = sender as ListBox;
+                var listBoxItem = FindAncestor<ListBoxItem>((DependencyObject)e.OriginalSource);
+
+                if (listBoxItem != null)
+                {
+                    var step = listBox.ItemContainerGenerator.ItemFromContainer(listBoxItem) as TestStep;
+                    if (step != null)
+                    {
+                        _isDragging = true;
+                        var data = new DataObject("TestStep", step);
+                        DragDrop.DoDragDrop(listBoxItem, data, DragDropEffects.Move);
+                        _isDragging = false;
+                    }
+                }
+            }
+        }
+
+        private void StepList_DragOver(object sender, DragEventArgs e)
+        {
+            if (!e.Data.GetDataPresent("TestStep"))
+            {
+                e.Effects = DragDropEffects.None;
+                e.Handled = true;
+                return;
+            }
+
+            e.Effects = DragDropEffects.Move;
+            e.Handled = true;
+        }
+
+        private void StepList_Drop(object sender, DragEventArgs e)
+        {
+            if (!e.Data.GetDataPresent("TestStep"))
+                return;
+
+            var droppedStep = e.Data.GetData("TestStep") as TestStep;
+            if (droppedStep == null)
+                return;
+
+            var listBox = sender as ListBox;
+            var targetItem = FindAncestor<ListBoxItem>((DependencyObject)e.OriginalSource);
+
+            if (targetItem != null)
+            {
+                var targetStep = listBox.ItemContainerGenerator.ItemFromContainer(targetItem) as TestStep;
+                if (targetStep != null && droppedStep != targetStep)
+                {
+                    var oldIndex = _steps.IndexOf(droppedStep);
+                    var newIndex = _steps.IndexOf(targetStep);
+
+                    if (oldIndex >= 0 && newIndex >= 0)
+                    {
+                        _steps.Move(oldIndex, newIndex);
+                        UpdateStepOrders();
+                        lstSteps.SelectedItem = droppedStep;
+                    }
+                }
+            }
+            else
+            {
+                // 빈 공간에 드롭하면 맨 끝으로 이동
+                var oldIndex = _steps.IndexOf(droppedStep);
+                if (oldIndex >= 0 && oldIndex < _steps.Count - 1)
+                {
+                    _steps.Move(oldIndex, _steps.Count - 1);
+                    UpdateStepOrders();
+                    lstSteps.SelectedItem = droppedStep;
+                }
+            }
+
+            e.Handled = true;
+        }
+
+        private static T FindAncestor<T>(DependencyObject current) where T : DependencyObject
+        {
+            do
+            {
+                if (current is T)
+                {
+                    return (T)current;
+                }
+                current = VisualTreeHelper.GetParent(current);
+            }
+            while (current != null);
+
+            return null;
+        }
+
+        #endregion
     }
 }

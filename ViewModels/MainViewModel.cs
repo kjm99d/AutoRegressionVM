@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
@@ -11,6 +14,7 @@ using AutoRegressionVM.Services.Notification;
 using AutoRegressionVM.Services.TestExecution;
 using AutoRegressionVM.Services.VMware;
 using AutoRegressionVM.Views;
+using Microsoft.Win32;
 
 namespace AutoRegressionVM.ViewModels
 {
@@ -19,8 +23,10 @@ namespace AutoRegressionVM.ViewModels
         private readonly IVMwareService _vmwareService;
         private readonly SettingsService _settingsService;
         private readonly NotificationManager _notificationManager;
+        private readonly ReportService _reportService;
         private AppSettings _appSettings;
         private ITestRunner _testRunner;
+        private ScenarioResult _lastScenarioResult;
 
         #region Properties
 
@@ -85,6 +91,9 @@ namespace AutoRegressionVM.ViewModels
         // 로그
         public ObservableCollection<string> Logs { get; } = new ObservableCollection<string>();
 
+        // VM 실행 상태 (병렬 실행 시각화)
+        public ObservableCollection<VMExecutionStatus> VMExecutionStatuses { get; } = new ObservableCollection<VMExecutionStatus>();
+
         #endregion
 
         #region Commands
@@ -99,6 +108,11 @@ namespace AutoRegressionVM.ViewModels
         public ICommand NewScenarioCommand { get; }
         public ICommand EditScenarioCommand { get; }
         public ICommand DeleteScenarioCommand { get; }
+        public ICommand CloneScenarioCommand { get; }
+        public ICommand ExportScenarioCommand { get; }
+        public ICommand ImportScenarioCommand { get; }
+        public ICommand ExportReportCommand { get; }
+        public ICommand ViewHistoryCommand { get; }
         public ICommand SaveCommand { get; }
         public ICommand SettingsCommand { get; }
 
@@ -107,6 +121,7 @@ namespace AutoRegressionVM.ViewModels
         public MainViewModel()
         {
             _settingsService = new SettingsService();
+            _reportService = new ReportService();
             _appSettings = _settingsService.LoadSettings();
             _vmwareService = new VixService(_appSettings.VMwareInstallPath);
             _notificationManager = new NotificationManager(_appSettings.Notification);
@@ -122,6 +137,11 @@ namespace AutoRegressionVM.ViewModels
             NewScenarioCommand = new RelayCommand(_ => CreateNewScenario());
             EditScenarioCommand = new RelayCommand(_ => EditScenario(), _ => SelectedScenario != null);
             DeleteScenarioCommand = new RelayCommand(_ => DeleteScenario(), _ => SelectedScenario != null);
+            CloneScenarioCommand = new RelayCommand(_ => CloneScenario(), _ => SelectedScenario != null);
+            ExportScenarioCommand = new RelayCommand(_ => ExportScenario(), _ => SelectedScenario != null);
+            ImportScenarioCommand = new RelayCommand(_ => ImportScenario());
+            ExportReportCommand = new RelayCommand(_ => ExportReport(), _ => _lastScenarioResult != null);
+            ViewHistoryCommand = new RelayCommand(_ => ViewHistory());
             SaveCommand = new RelayCommand(_ => SaveAll());
             SettingsCommand = new RelayCommand(_ => OpenSettings());
 
@@ -239,8 +259,14 @@ namespace AutoRegressionVM.ViewModels
 
                 // 결과 저장
                 _settingsService.SaveResult(result);
+                _lastScenarioResult = result;
                 SelectedScenario.LastRunAt = DateTime.Now;
                 _settingsService.SaveScenario(SelectedScenario);
+
+                // 리포트 자동 생성
+                var htmlPath = _reportService.GenerateHtmlReport(result);
+                var jsonPath = _reportService.GenerateJsonReport(result);
+                AddLog($"리포트 생성됨: {Path.GetFileName(htmlPath)}");
 
                 StatusMessage = $"완료: 성공 {result.PassedCount}, 실패 {result.FailedCount}";
                 ProgressPercent = 100;
@@ -327,6 +353,194 @@ namespace AutoRegressionVM.ViewModels
                 _settingsService.DeleteScenario(scenarioToRemove);
                 AddLog($"시나리오 삭제됨: {scenarioToRemove.Name}");
             }
+        }
+
+        private void CloneScenario()
+        {
+            if (SelectedScenario == null) return;
+
+            var cloned = new TestScenario
+            {
+                Id = Guid.NewGuid().ToString(),
+                Name = SelectedScenario.Name + " (복사본)",
+                Description = SelectedScenario.Description,
+                MaxParallelVMs = SelectedScenario.MaxParallelVMs,
+                ContinueOnFailure = SelectedScenario.ContinueOnFailure,
+                CreatedAt = DateTime.Now,
+                Steps = SelectedScenario.Steps.Select(s => new TestStep
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    Name = s.Name,
+                    Description = s.Description,
+                    Order = s.Order,
+                    TargetVmxPath = s.TargetVmxPath,
+                    SnapshotName = s.SnapshotName,
+                    FilesToCopyToVM = s.FilesToCopyToVM?.Select(f => new FileCopyInfo
+                    {
+                        SourcePath = f.SourcePath,
+                        DestinationPath = f.DestinationPath
+                    }).ToList() ?? new List<FileCopyInfo>(),
+                    ResultFilesToCollect = s.ResultFilesToCollect?.Select(f => new FileCopyInfo
+                    {
+                        SourcePath = f.SourcePath,
+                        DestinationPath = f.DestinationPath
+                    }).ToList() ?? new List<FileCopyInfo>(),
+                    Execution = new ExecutionInfo
+                    {
+                        Type = s.Execution?.Type ?? ExecutionType.Program,
+                        ExecutablePath = s.Execution?.ExecutablePath,
+                        Arguments = s.Execution?.Arguments,
+                        WorkingDirectory = s.Execution?.WorkingDirectory,
+                        TimeoutSeconds = s.Execution?.TimeoutSeconds ?? 300,
+                        WaitForExit = s.Execution?.WaitForExit ?? true
+                    },
+                    SuccessCriteria = new SuccessCriteria
+                    {
+                        ExpectedExitCode = s.SuccessCriteria?.ExpectedExitCode,
+                        ResultJsonPath = s.SuccessCriteria?.ResultJsonPath,
+                        ExpectedJsonValue = s.SuccessCriteria?.ExpectedJsonValue,
+                        ContainsText = s.SuccessCriteria?.ContainsText,
+                        NotContainsText = s.SuccessCriteria?.NotContainsText
+                    },
+                    ForceNetworkDisconnect = s.ForceNetworkDisconnect,
+                    CaptureScreenshots = s.CaptureScreenshots,
+                    ScreenshotIntervalSeconds = s.ScreenshotIntervalSeconds,
+                    ForceSnapshotRevertAfter = s.ForceSnapshotRevertAfter
+                }).ToList()
+            };
+
+            Scenarios.Add(cloned);
+            SelectedScenario = cloned;
+            _settingsService.SaveScenario(cloned);
+            AddLog($"시나리오 복제됨: {cloned.Name}");
+        }
+
+        private void ExportScenario()
+        {
+            if (SelectedScenario == null) return;
+
+            var dialog = new SaveFileDialog
+            {
+                Title = "시나리오 내보내기",
+                Filter = "JSON 파일 (*.json)|*.json",
+                FileName = SelectedScenario.Name + ".json"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                try
+                {
+                    var json = SimpleJson.Serialize(SelectedScenario);
+                    File.WriteAllText(dialog.FileName, json);
+                    AddLog($"시나리오 내보내기 완료: {dialog.FileName}");
+                    MessageBox.Show("시나리오를 내보냈습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"시나리오 내보내기 실패: {ex.Message}");
+                    MessageBox.Show($"내보내기 실패: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        private void ImportScenario()
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "시나리오 가져오기",
+                Filter = "JSON 파일 (*.json)|*.json",
+                Multiselect = true
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                foreach (var fileName in dialog.FileNames)
+                {
+                    try
+                    {
+                        var json = File.ReadAllText(fileName);
+                        var scenario = SimpleJson.Deserialize<TestScenario>(json);
+
+                        if (scenario != null)
+                        {
+                            // 새 ID 부여
+                            scenario.Id = Guid.NewGuid().ToString();
+                            scenario.CreatedAt = DateTime.Now;
+
+                            // 이름 중복 확인
+                            var baseName = scenario.Name;
+                            int counter = 1;
+                            while (Scenarios.Any(s => s.Name == scenario.Name))
+                            {
+                                scenario.Name = $"{baseName} ({counter++})";
+                            }
+
+                            Scenarios.Add(scenario);
+                            _settingsService.SaveScenario(scenario);
+                            AddLog($"시나리오 가져오기 완료: {scenario.Name}");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        AddLog($"시나리오 가져오기 실패 ({Path.GetFileName(fileName)}): {ex.Message}");
+                    }
+                }
+
+                MessageBox.Show($"{dialog.FileNames.Length}개 시나리오를 가져왔습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+
+        private void ExportReport()
+        {
+            if (_lastScenarioResult == null)
+            {
+                MessageBox.Show("내보낼 테스트 결과가 없습니다.", "알림", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new SaveFileDialog
+            {
+                Title = "리포트 내보내기",
+                Filter = "HTML 파일 (*.html)|*.html|JSON 파일 (*.json)|*.json",
+                FileName = $"{_lastScenarioResult.ScenarioName}_{_lastScenarioResult.StartTime:yyyyMMdd_HHmmss}"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                try
+                {
+                    if (dialog.FilterIndex == 1)
+                    {
+                        _reportService.GenerateHtmlReport(_lastScenarioResult, dialog.FileName);
+                    }
+                    else
+                    {
+                        _reportService.GenerateJsonReport(_lastScenarioResult, dialog.FileName);
+                    }
+
+                    AddLog($"리포트 내보내기 완료: {dialog.FileName}");
+
+                    var result = MessageBox.Show("리포트를 열어보시겠습니까?", "완료", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                    if (result == MessageBoxResult.Yes)
+                    {
+                        Process.Start(new ProcessStartInfo(dialog.FileName) { UseShellExecute = true });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"리포트 내보내기 실패: {ex.Message}");
+                    MessageBox.Show($"내보내기 실패: {ex.Message}", "오류", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        private void ViewHistory()
+        {
+            var dialog = new TestHistoryDialog(_settingsService)
+            {
+                Owner = Application.Current.MainWindow
+            };
+            dialog.ShowDialog();
         }
 
         private void SaveAll()

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace AutoRegressionVM.Models
 {
     /// <summary>
-    /// °³º° Å×½ºÆ® Step
+    /// ï¿½ï¿½ï¿½ï¿½ ï¿½×½ï¿½Æ® Step
     /// </summary>
     public class TestStep
     {
@@ -13,58 +13,106 @@ namespace AutoRegressionVM.Models
         public int Order { get; set; }
 
         /// <summary>
-        /// ´ë»ó VMÀÇ VMX °æ·Î
+        /// ï¿½ï¿½ï¿½ VMï¿½ï¿½ VMX ï¿½ï¿½ï¿½
         /// </summary>
         public string TargetVmxPath { get; set; }
 
         /// <summary>
-        /// ·Ñ¹éÇÒ ½º³À¼¦ ÀÌ¸§
+        /// ï¿½Ñ¹ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ì¸ï¿½
         /// </summary>
         public string SnapshotName { get; set; }
 
         /// <summary>
-        /// È£½ºÆ® ¡æ VM º¹»çÇÒ ÆÄÀÏ ¸ñ·Ï
+        /// È£ï¿½ï¿½Æ® ï¿½ï¿½ VM ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½
         /// </summary>
         public List<FileCopyInfo> FilesToCopyToVM { get; set; } = new List<FileCopyInfo>();
 
         /// <summary>
-        /// ½ÇÇà ¼³Á¤
+        /// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         public ExecutionInfo Execution { get; set; } = new ExecutionInfo();
 
         /// <summary>
-        /// VM ¡æ È£½ºÆ® º¹»çÇÒ °á°ú ÆÄÀÏ ¸ñ·Ï
+        /// VM ï¿½ï¿½ È£ï¿½ï¿½Æ® ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½
         /// </summary>
         public List<FileCopyInfo> ResultFilesToCollect { get; set; } = new List<FileCopyInfo>();
 
         /// <summary>
-        /// ¼º°ø Á¶°Ç
+        /// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         public SuccessCriteria SuccessCriteria { get; set; } = new SuccessCriteria();
 
         /// <summary>
-        /// ½ÇÇà Àü ³×Æ®¿öÅ© °­Á¦ ÇØÁ¦ (¾Ç¼ºÄÚµå Å×½ºÆ®¿ë)
+        /// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½Æ®ï¿½ï¿½Å© ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ (ï¿½Ç¼ï¿½ï¿½Úµï¿½ ï¿½×½ï¿½Æ®ï¿½ï¿½)
         /// </summary>
         public bool ForceNetworkDisconnect { get; set; } = true;
 
         /// <summary>
-        /// ½ÇÇà Áß ½ºÅ©¸°¼¦ Ä¸Ã³
+        /// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½Å©ï¿½ï¿½ï¿½ï¿½ Ä¸Ã³
         /// </summary>
         public bool CaptureScreenshots { get; set; } = false;
 
         /// <summary>
-        /// ½ºÅ©¸°¼¦ Ä¸Ã³ °£°İ (ÃÊ)
+        /// ï¿½ï¿½Å©ï¿½ï¿½ï¿½ï¿½ Ä¸Ã³ ï¿½ï¿½ï¿½ï¿½ (ï¿½ï¿½)
         /// </summary>
         public int ScreenshotIntervalSeconds { get; set; } = 10;
 
         /// <summary>
-        /// ¿Ï·á ÈÄ ¹«Á¶°Ç ½º³À¼¦ ·Ñ¹é
+        /// ì™„ë£Œ í›„ ìŠ¤ëƒ…ìƒ· ë³µì›
         /// </summary>
         public bool ForceSnapshotRevertAfter { get; set; } = true;
+
+        /// <summary>
+        /// ì¡°ê±´ë¶€ ì‹¤í–‰ ì„¤ì •
+        /// </summary>
+        public StepCondition Condition { get; set; }
     }
 
     /// <summary>
-    /// ÆÄÀÏ º¹»ç Á¤º¸
+    /// ìŠ¤í… ì‹¤í–‰ ì¡°ê±´
+    /// </summary>
+    public class StepCondition
+    {
+        /// <summary>
+        /// ì¡°ê±´ ìœ í˜•
+        /// </summary>
+        public ConditionType Type { get; set; } = ConditionType.Always;
+
+        /// <summary>
+        /// ì°¸ì¡°í•  ì´ì „ ìŠ¤í… ID (íŠ¹ì • ìŠ¤í… ê²°ê³¼ ì°¸ì¡° ì‹œ)
+        /// </summary>
+        public string ReferenceStepId { get; set; }
+
+        /// <summary>
+        /// ì°¸ì¡°í•  ì´ì „ ìŠ¤í… ì´ë¦„ (í‘œì‹œìš©)
+        /// </summary>
+        public string ReferenceStepName { get; set; }
+
+        /// <summary>
+        /// ê¸°ëŒ€í•˜ëŠ” ê²°ê³¼ ìƒíƒœ
+        /// </summary>
+        public ExpectedResult ExpectedResult { get; set; } = ExpectedResult.Passed;
+    }
+
+    public enum ConditionType
+    {
+        Always,              // í•­ìƒ ì‹¤í–‰
+        PreviousStepPassed,  // ë°”ë¡œ ì´ì „ ìŠ¤í… ì„±ê³µ ì‹œ
+        PreviousStepFailed,  // ë°”ë¡œ ì´ì „ ìŠ¤í… ì‹¤íŒ¨ ì‹œ
+        SpecificStepResult,  // íŠ¹ì • ìŠ¤í… ê²°ê³¼ì— ë”°ë¼
+        AllPreviousPassed,   // ëª¨ë“  ì´ì „ ìŠ¤í… ì„±ê³µ ì‹œ
+        AnyPreviousFailed    // í•˜ë‚˜ë¼ë„ ì‹¤íŒ¨ ì‹œ
+    }
+
+    public enum ExpectedResult
+    {
+        Passed,
+        Failed,
+        Any
+    }
+
+    /// <summary>
+    /// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
     /// </summary>
     public class FileCopyInfo
     {
@@ -73,7 +121,7 @@ namespace AutoRegressionVM.Models
     }
 
     /// <summary>
-    /// ½ÇÇà Á¤º¸
+    /// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
     /// </summary>
     public class ExecutionInfo
     {
@@ -87,34 +135,34 @@ namespace AutoRegressionVM.Models
 
     public enum ExecutionType
     {
-        Program,    // exe Á÷Á¢ ½ÇÇà
-        Script,     // bat, ps1 ½ºÅ©¸³Æ®
-        Command     // cmd /c "¸í·É¾î"
+        Program,    // exe ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
+        Script,     // bat, ps1 ï¿½ï¿½Å©ï¿½ï¿½Æ®
+        Command     // cmd /c "ï¿½ï¿½ï¿½É¾ï¿½"
     }
 
     /// <summary>
-    /// ¼º°ø Á¶°Ç
+    /// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
     /// </summary>
     public class SuccessCriteria
     {
         /// <summary>
-        /// ¿¹»ó Exit Code (nullÀÌ¸é Ã¼Å© ¾ÈÇÔ)
+        /// ï¿½ï¿½ï¿½ï¿½ Exit Code (nullï¿½Ì¸ï¿½ Ã¼Å© ï¿½ï¿½ï¿½ï¿½)
         /// </summary>
         public int? ExpectedExitCode { get; set; } = 0;
 
         /// <summary>
-        /// °á°ú ÆÄÀÏ¿¡¼­ È®ÀÎÇÒ JSON °æ·Î¿Í °ª
+        /// ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ï¿ï¿½ï¿½ï¿½ È®ï¿½ï¿½ï¿½ï¿½ JSON ï¿½ï¿½Î¿ï¿½ ï¿½ï¿½
         /// </summary>
         public string ResultJsonPath { get; set; }
         public string ExpectedJsonValue { get; set; }
 
         /// <summary>
-        /// °á°ú¿¡ Æ÷ÇÔµÇ¾î¾ß ÇÒ ¹®ÀÚ¿­
+        /// ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ÔµÇ¾ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½Ú¿ï¿½
         /// </summary>
         public string ContainsText { get; set; }
 
         /// <summary>
-        /// °á°ú¿¡ Æ÷ÇÔµÇ¸é ¾ÈµÇ´Â ¹®ÀÚ¿­
+        /// ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ÔµÇ¸ï¿½ ï¿½ÈµÇ´ï¿½ ï¿½ï¿½ï¿½Ú¿ï¿½
         /// </summary>
         public string NotContainsText { get; set; }
     }
