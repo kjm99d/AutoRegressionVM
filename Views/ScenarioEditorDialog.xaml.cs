@@ -59,6 +59,82 @@ namespace AutoRegressionVM.Views
             {
                 _steps.Add(step);
             }
+
+            // 이벤트 설정 로드
+            LoadPreEventToUI(scenario.PreTestEvent);
+            LoadPostEventToUI(scenario.PostTestEvent);
+        }
+
+        private void LoadPreEventToUI(ScenarioEvent evt)
+        {
+            if (evt == null)
+            {
+                chkPreEventEnabled.IsChecked = false;
+                return;
+            }
+
+            chkPreEventEnabled.IsChecked = evt.IsEnabled;
+            cboPreEventType.SelectedIndex = (int)evt.Type;
+            txtPreEventCommand.Text = evt.Command;
+            txtPreEventArgs.Text = evt.Arguments;
+            txtPreEventWorkDir.Text = evt.WorkingDirectory;
+            txtPreEventTimeout.Text = evt.TimeoutSeconds.ToString();
+            chkPreEventStopOnFailure.IsChecked = evt.StopOnFailure;
+            chkPreEventHideWindow.IsChecked = evt.HideWindow;
+        }
+
+        private void LoadPostEventToUI(ScenarioEvent evt)
+        {
+            if (evt == null)
+            {
+                chkPostEventEnabled.IsChecked = false;
+                return;
+            }
+
+            chkPostEventEnabled.IsChecked = evt.IsEnabled;
+            cboPostEventType.SelectedIndex = (int)evt.Type;
+            txtPostEventCommand.Text = evt.Command;
+            txtPostEventArgs.Text = evt.Arguments;
+            txtPostEventWorkDir.Text = evt.WorkingDirectory;
+            txtPostEventTimeout.Text = evt.TimeoutSeconds.ToString();
+            cboPostEventCondition.SelectedIndex = (int)evt.RunCondition;
+            chkPostEventHideWindow.IsChecked = evt.HideWindow;
+        }
+
+        private ScenarioEvent GetPreEventFromUI()
+        {
+            if (chkPreEventEnabled.IsChecked != true || string.IsNullOrWhiteSpace(txtPreEventCommand.Text))
+                return null;
+
+            return new ScenarioEvent
+            {
+                IsEnabled = chkPreEventEnabled.IsChecked ?? false,
+                Type = (EventType)cboPreEventType.SelectedIndex,
+                Command = txtPreEventCommand.Text,
+                Arguments = txtPreEventArgs.Text,
+                WorkingDirectory = txtPreEventWorkDir.Text,
+                TimeoutSeconds = int.TryParse(txtPreEventTimeout.Text, out var timeout) ? timeout : 300,
+                StopOnFailure = chkPreEventStopOnFailure.IsChecked ?? true,
+                HideWindow = chkPreEventHideWindow.IsChecked ?? true
+            };
+        }
+
+        private ScenarioEvent GetPostEventFromUI()
+        {
+            if (chkPostEventEnabled.IsChecked != true || string.IsNullOrWhiteSpace(txtPostEventCommand.Text))
+                return null;
+
+            return new ScenarioEvent
+            {
+                IsEnabled = chkPostEventEnabled.IsChecked ?? false,
+                Type = (EventType)cboPostEventType.SelectedIndex,
+                Command = txtPostEventCommand.Text,
+                Arguments = txtPostEventArgs.Text,
+                WorkingDirectory = txtPostEventWorkDir.Text,
+                TimeoutSeconds = int.TryParse(txtPostEventTimeout.Text, out var timeout) ? timeout : 300,
+                RunCondition = (PostEventCondition)cboPostEventCondition.SelectedIndex,
+                HideWindow = chkPostEventHideWindow.IsChecked ?? true
+            };
         }
 
         private void StepList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -275,7 +351,9 @@ namespace AutoRegressionVM.Views
                 Description = txtDescription.Text?.Trim(),
                 MaxParallelVMs = int.TryParse(txtMaxParallel.Text, out var maxParallel) ? maxParallel : 1,
                 ContinueOnFailure = chkContinueOnFailure.IsChecked ?? true,
-                Steps = _steps.ToList()
+                Steps = _steps.ToList(),
+                PreTestEvent = GetPreEventFromUI(),
+                PostTestEvent = GetPostEventFromUI()
             };
 
             if (_isEditing)
@@ -487,6 +565,75 @@ namespace AutoRegressionVM.Views
             lblRefStep.Visibility = showRefStep ? Visibility.Visible : Visibility.Collapsed;
             cboRefStep.Visibility = showRefStep ? Visibility.Visible : Visibility.Collapsed;
         }
+
+        #region Event Handlers for Pre/Post Events
+
+        private void BrowsePreEventCommand_Click(object sender, RoutedEventArgs e)
+        {
+            var path = BrowseEventFile();
+            if (!string.IsNullOrEmpty(path))
+            {
+                txtPreEventCommand.Text = path;
+            }
+        }
+
+        private void BrowsePreEventWorkDir_Click(object sender, RoutedEventArgs e)
+        {
+            var path = BrowseFolder("테스트 전 이벤트 작업 디렉토리 선택");
+            if (!string.IsNullOrEmpty(path))
+            {
+                txtPreEventWorkDir.Text = path;
+            }
+        }
+
+        private void BrowsePostEventCommand_Click(object sender, RoutedEventArgs e)
+        {
+            var path = BrowseEventFile();
+            if (!string.IsNullOrEmpty(path))
+            {
+                txtPostEventCommand.Text = path;
+            }
+        }
+
+        private void BrowsePostEventWorkDir_Click(object sender, RoutedEventArgs e)
+        {
+            var path = BrowseFolder("테스트 후 이벤트 작업 디렉토리 선택");
+            if (!string.IsNullOrEmpty(path))
+            {
+                txtPostEventWorkDir.Text = path;
+            }
+        }
+
+        private string BrowseEventFile()
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "스크립트/실행 파일 선택",
+                Filter = "실행 파일 (*.exe;*.bat;*.cmd;*.ps1)|*.exe;*.bat;*.cmd;*.ps1|모든 파일 (*.*)|*.*"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                return dialog.FileName;
+            }
+            return null;
+        }
+
+        private string BrowseFolder(string description)
+        {
+            var dialog = new System.Windows.Forms.FolderBrowserDialog
+            {
+                Description = description
+            };
+
+            if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
+            {
+                return dialog.SelectedPath;
+            }
+            return null;
+        }
+
+        #endregion
 
         #region Drag and Drop
 

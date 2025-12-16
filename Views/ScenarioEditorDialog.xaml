@@ -11,31 +11,159 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- 시나리오 기본 정보 -->
-        <GroupBox Grid.Row="0" Header="시나리오 정보" Margin="0,0,0,10">
-            <Grid Margin="10">
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="100"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="100"/>
-                    <ColumnDefinition Width="80"/>
-                </Grid.ColumnDefinitions>
+        <!-- 시나리오 기본 정보 및 이벤트 -->
+        <GroupBox Grid.Row="0" Header="시나리오 설정" Margin="0,0,0,10">
+            <TabControl Margin="5">
+                <!-- 기본 정보 탭 -->
+                <TabItem Header="기본 정보">
+                    <Grid Margin="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="80"/>
+                        </Grid.ColumnDefinitions>
 
-                <TextBlock Grid.Row="0" Text="이름:" VerticalAlignment="Center"/>
-                <TextBox Grid.Row="0" Grid.Column="1" x:Name="txtName" Margin="0,0,10,5"/>
-                <TextBlock Grid.Row="0" Grid.Column="2" Text="병렬 VM:" VerticalAlignment="Center"/>
-                <TextBox Grid.Row="0" Grid.Column="3" x:Name="txtMaxParallel" Text="1" Margin="0,0,0,5"/>
+                        <TextBlock Grid.Row="0" Text="이름:" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="0" Grid.Column="1" x:Name="txtName" Margin="0,0,10,5"/>
+                        <TextBlock Grid.Row="0" Grid.Column="2" Text="병렬 VM:" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="0" Grid.Column="3" x:Name="txtMaxParallel" Text="1" Margin="0,0,0,5"/>
 
-                <TextBlock Grid.Row="1" Text="설명:" VerticalAlignment="Center"/>
-                <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" x:Name="txtDescription" Margin="0,0,0,5"/>
+                        <TextBlock Grid.Row="1" Text="설명:" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="3" x:Name="txtDescription" Margin="0,0,0,5"/>
 
-                <CheckBox Grid.Row="2" Grid.Column="1" x:Name="chkContinueOnFailure" Content="실패 시 계속 진행" IsChecked="True"/>
-            </Grid>
+                        <CheckBox Grid.Row="2" Grid.Column="1" x:Name="chkContinueOnFailure" Content="실패 시 계속 진행" IsChecked="True"/>
+                    </Grid>
+                </TabItem>
+
+                <!-- 테스트 전 이벤트 탭 -->
+                <TabItem Header="테스트 전 이벤트">
+                    <Grid Margin="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <CheckBox Grid.Row="0" Grid.ColumnSpan="2" x:Name="chkPreEventEnabled" Content="테스트 전 이벤트 활성화" Margin="0,0,0,10"/>
+
+                        <TextBlock Grid.Row="1" Text="유형:" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Row="1" Grid.Column="1" x:Name="cboPreEventType" Margin="0,0,0,5">
+                            <ComboBoxItem Content="명령줄" IsSelected="True"/>
+                            <ComboBoxItem Content="PowerShell"/>
+                            <ComboBoxItem Content="배치 파일"/>
+                            <ComboBoxItem Content="실행 파일"/>
+                        </ComboBox>
+
+                        <TextBlock Grid.Row="2" Text="명령/경로:" VerticalAlignment="Center"/>
+                        <Grid Grid.Row="2" Grid.Column="1" Margin="0,0,0,5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="txtPreEventCommand" Margin="0,0,5,0"/>
+                            <Button Grid.Column="1" Content="..." Width="26" Click="BrowsePreEventCommand_Click"/>
+                        </Grid>
+
+                        <TextBlock Grid.Row="3" Text="인수:" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="3" Grid.Column="1" x:Name="txtPreEventArgs" Margin="0,0,0,5"/>
+
+                        <TextBlock Grid.Row="4" Text="작업 디렉토리:" VerticalAlignment="Center"/>
+                        <Grid Grid.Row="4" Grid.Column="1" Margin="0,0,0,5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="txtPreEventWorkDir" Margin="0,0,5,0"/>
+                            <Button Grid.Column="1" Content="..." Width="26" Click="BrowsePreEventWorkDir_Click"/>
+                        </Grid>
+
+                        <StackPanel Grid.Row="5" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,5,0,0">
+                            <TextBlock Text="타임아웃(초):" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBox x:Name="txtPreEventTimeout" Text="300" Width="60" Margin="0,0,20,0"/>
+                            <CheckBox x:Name="chkPreEventStopOnFailure" Content="실패 시 테스트 중단" IsChecked="True" Margin="0,0,10,0"/>
+                            <CheckBox x:Name="chkPreEventHideWindow" Content="창 숨김" IsChecked="True"/>
+                        </StackPanel>
+                    </Grid>
+                </TabItem>
+
+                <!-- 테스트 후 이벤트 탭 -->
+                <TabItem Header="테스트 후 이벤트">
+                    <Grid Margin="10">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="100"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <CheckBox Grid.Row="0" Grid.ColumnSpan="2" x:Name="chkPostEventEnabled" Content="테스트 후 이벤트 활성화" Margin="0,0,0,10"/>
+
+                        <TextBlock Grid.Row="1" Text="유형:" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Row="1" Grid.Column="1" x:Name="cboPostEventType" Margin="0,0,0,5">
+                            <ComboBoxItem Content="명령줄" IsSelected="True"/>
+                            <ComboBoxItem Content="PowerShell"/>
+                            <ComboBoxItem Content="배치 파일"/>
+                            <ComboBoxItem Content="실행 파일"/>
+                        </ComboBox>
+
+                        <TextBlock Grid.Row="2" Text="명령/경로:" VerticalAlignment="Center"/>
+                        <Grid Grid.Row="2" Grid.Column="1" Margin="0,0,0,5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="txtPostEventCommand" Margin="0,0,5,0"/>
+                            <Button Grid.Column="1" Content="..." Width="26" Click="BrowsePostEventCommand_Click"/>
+                        </Grid>
+
+                        <TextBlock Grid.Row="3" Text="인수:" VerticalAlignment="Center"/>
+                        <TextBox Grid.Row="3" Grid.Column="1" x:Name="txtPostEventArgs" Margin="0,0,0,5"/>
+
+                        <TextBlock Grid.Row="4" Text="작업 디렉토리:" VerticalAlignment="Center"/>
+                        <Grid Grid.Row="4" Grid.Column="1" Margin="0,0,0,5">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="txtPostEventWorkDir" Margin="0,0,5,0"/>
+                            <Button Grid.Column="1" Content="..." Width="26" Click="BrowsePostEventWorkDir_Click"/>
+                        </Grid>
+
+                        <TextBlock Grid.Row="5" Text="실행 조건:" VerticalAlignment="Center"/>
+                        <ComboBox Grid.Row="5" Grid.Column="1" x:Name="cboPostEventCondition" Margin="0,0,0,5">
+                            <ComboBoxItem Content="항상 실행" IsSelected="True"/>
+                            <ComboBoxItem Content="테스트 성공 시에만"/>
+                            <ComboBoxItem Content="테스트 실패 시에만"/>
+                        </ComboBox>
+
+                        <StackPanel Grid.Row="6" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,5,0,0">
+                            <TextBlock Text="타임아웃(초):" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                            <TextBox x:Name="txtPostEventTimeout" Text="300" Width="60" Margin="0,0,20,0"/>
+                            <CheckBox x:Name="chkPostEventHideWindow" Content="창 숨김" IsChecked="True"/>
+                        </StackPanel>
+                    </Grid>
+                </TabItem>
+            </TabControl>
         </GroupBox>
 
         <!-- 스텝 목록과 편집 영역 -->

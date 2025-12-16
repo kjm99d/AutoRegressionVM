@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -10,7 +11,7 @@ using AutoRegressionVM.Services.VMware;
 namespace AutoRegressionVM.Services.TestExecution
 {
     /// <summary>
-    /// Å×½ºÆ® ½ÇÇà±â ±¸Çö
+    /// ï¿½×½ï¿½Æ® ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
     /// </summary>
     public class TestRunner : ITestRunner
     {
@@ -34,7 +35,7 @@ namespace AutoRegressionVM.Services.TestExecution
         public async Task<ScenarioResult> RunScenarioAsync(TestScenario scenario)
         {
             if (_isRunning)
-                throw new InvalidOperationException("ÀÌ¹Ì ½ÇÇà ÁßÀÔ´Ï´Ù.");
+                throw new InvalidOperationException("ï¿½Ì¹ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ô´Ï´ï¿½.");
 
             _isRunning = true;
             _cancellationTokenSource = new CancellationTokenSource();
@@ -48,15 +49,31 @@ namespace AutoRegressionVM.Services.TestExecution
 
             try
             {
-                Log(TestLogLevel.Info, $"½Ã³ª¸®¿À ½ÃÀÛ: {scenario.Name}");
+                Log(TestLogLevel.Info, $"ì‹œë‚˜ë¦¬ì˜¤ ì‹œì‘: {scenario.Name}");
 
-                // ¿¬°á È®ÀÎ
+                // í…ŒìŠ¤íŠ¸ ì „ ì´ë²¤íŠ¸ ì‹¤í–‰
+                if (scenario.PreTestEvent != null && scenario.PreTestEvent.IsEnabled)
+                {
+                    Log(TestLogLevel.Info, "í…ŒìŠ¤íŠ¸ ì „ ì´ë²¤íŠ¸ ì‹¤í–‰ ì¤‘...");
+                    var preEventResult = await RunEventAsync(scenario.PreTestEvent, scenario.Name);
+
+                    if (!preEventResult.Success && scenario.PreTestEvent.StopOnFailure)
+                    {
+                        Log(TestLogLevel.Error, $"í…ŒìŠ¤íŠ¸ ì „ ì´ë²¤íŠ¸ ì‹¤íŒ¨: {preEventResult.ErrorMessage}");
+                        result.EndTime = DateTime.Now;
+                        return result;
+                    }
+
+                    Log(TestLogLevel.Info, $"í…ŒìŠ¤íŠ¸ ì „ ì´ë²¤íŠ¸ ì™„ë£Œ (Exit Code: {preEventResult.ExitCode})");
+                }
+
+                // ì—°ê²° í™•ì¸
                 if (!_vmwareService.IsConnected)
                 {
-                    Log(TestLogLevel.Info, "VMware ¿¬°á Áß...");
+                    Log(TestLogLevel.Info, "VMware ì—°ê²° ì¤‘...");
                     if (!await _vmwareService.ConnectAsync())
                     {
-                        throw new Exception("VMware ¿¬°á ½ÇÆĞ");
+                        throw new Exception("VMware ì—°ê²° ì‹¤íŒ¨");
                     }
                 }
 
@@ -66,17 +83,17 @@ namespace AutoRegressionVM.Services.TestExecution
 
                 if (scenario.MaxParallelVMs > 1)
                 {
-                    // º´·Ä ½ÇÇà
+                    // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
                     await RunStepsParallelAsync(orderedSteps, scenario.MaxParallelVMs, result, scenario.ContinueOnFailure);
                 }
                 else
                 {
-                    // ¼øÂ÷ ½ÇÇà
+                    // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
                     foreach (var step in orderedSteps)
                     {
                         if (_cancellationTokenSource.Token.IsCancellationRequested)
                         {
-                            Log(TestLogLevel.Warning, "»ç¿ëÀÚ¿¡ ÀÇÇØ Ãë¼ÒµÊ");
+                            Log(TestLogLevel.Warning, "ï¿½ï¿½ï¿½ï¿½Ú¿ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½Òµï¿½");
                             break;
                         }
 
@@ -89,19 +106,55 @@ namespace AutoRegressionVM.Services.TestExecution
 
                         if (stepResult.Status == TestResultStatus.Failed && !scenario.ContinueOnFailure)
                         {
-                            Log(TestLogLevel.Error, $"Å×½ºÆ® ½ÇÆĞ·Î ½Ã³ª¸®¿À Áß´Ü: {step.Name}");
+                            Log(TestLogLevel.Error, $"ï¿½×½ï¿½Æ® ï¿½ï¿½ï¿½Ğ·ï¿½ ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ß´ï¿½: {step.Name}");
                             break;
                         }
                     }
                 }
 
                 result.EndTime = DateTime.Now;
-                Log(TestLogLevel.Info, $"½Ã³ª¸®¿À ¿Ï·á: ¼º°ø {result.PassedCount}, ½ÇÆĞ {result.FailedCount}, ¼Ò¿ä½Ã°£ {result.Duration:hh\\:mm\\:ss}");
+
+                // í…ŒìŠ¤íŠ¸ í›„ ì´ë²¤íŠ¸ ì‹¤í–‰
+                if (scenario.PostTestEvent != null && scenario.PostTestEvent.IsEnabled)
+                {
+                    bool shouldRunPostEvent = ShouldRunPostEvent(scenario.PostTestEvent, result);
+
+                    if (shouldRunPostEvent)
+                    {
+                        Log(TestLogLevel.Info, "í…ŒìŠ¤íŠ¸ í›„ ì´ë²¤íŠ¸ ì‹¤í–‰ ì¤‘...");
+                        var postEventResult = await RunEventAsync(scenario.PostTestEvent, scenario.Name, result);
+                        Log(TestLogLevel.Info, $"í…ŒìŠ¤íŠ¸ í›„ ì´ë²¤íŠ¸ ì™„ë£Œ (Exit Code: {postEventResult.ExitCode})");
+                    }
+                    else
+                    {
+                        Log(TestLogLevel.Info, "í…ŒìŠ¤íŠ¸ í›„ ì´ë²¤íŠ¸ ì¡°ê±´ ë¯¸ì¶©ì¡±ìœ¼ë¡œ ìŠ¤í‚µë¨");
+                    }
+                }
+
+                Log(TestLogLevel.Info, $"ì‹œë‚˜ë¦¬ì˜¤ ì™„ë£Œ: ì„±ê³µ {result.PassedCount}, ì‹¤íŒ¨ {result.FailedCount}, ì†Œìš”ì‹œê°„ {result.Duration:hh\\:mm\\:ss}");
             }
             catch (Exception ex)
             {
-                Log(TestLogLevel.Error, $"½Ã³ª¸®¿À ½ÇÇà ¿À·ù: {ex.Message}");
+                Log(TestLogLevel.Error, $"ì‹œë‚˜ë¦¬ì˜¤ ì‹¤í–‰ ì˜¤ë¥˜: {ex.Message}");
                 result.EndTime = DateTime.Now;
+
+                // ì˜¤ë¥˜ ë°œìƒ ì‹œì—ë„ Post ì´ë²¤íŠ¸ ì‹¤í–‰ (Always ë˜ëŠ” OnFailure ì¡°ê±´ì¼ ê²½ìš°)
+                if (scenario.PostTestEvent != null && scenario.PostTestEvent.IsEnabled)
+                {
+                    if (scenario.PostTestEvent.RunCondition == PostEventCondition.Always ||
+                        scenario.PostTestEvent.RunCondition == PostEventCondition.OnFailure)
+                    {
+                        Log(TestLogLevel.Info, "ì˜¤ë¥˜ ë°œìƒ í›„ í…ŒìŠ¤íŠ¸ í›„ ì´ë²¤íŠ¸ ì‹¤í–‰ ì¤‘...");
+                        try
+                        {
+                            await RunEventAsync(scenario.PostTestEvent, scenario.Name, result);
+                        }
+                        catch (Exception postEx)
+                        {
+                            Log(TestLogLevel.Warning, $"í…ŒìŠ¤íŠ¸ í›„ ì´ë²¤íŠ¸ ì‹¤í–‰ ì‹¤íŒ¨: {postEx.Message}");
+                        }
+                    }
+                }
             }
             finally
             {
@@ -166,43 +219,43 @@ namespace AutoRegressionVM.Services.TestExecution
                 var username = vm?.GuestUsername ?? "Administrator";
                 var password = vm?.GuestPassword ?? "";
 
-                // 1. ½º³À¼¦ ·Ñ¹é
+                // 1. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ñ¹ï¿½
                 ReportProgress(0, 1, step.Name, result.VMName, TestProgressPhase.RevertingSnapshot);
-                Log(TestLogLevel.Info, $"[{result.VMName}] ½º³À¼¦ ·Ñ¹é: {step.SnapshotName}");
+                Log(TestLogLevel.Info, $"[{result.VMName}] ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ñ¹ï¿½: {step.SnapshotName}");
 
                 if (!await _vmwareService.RevertToSnapshotAsync(vmxPath, step.SnapshotName))
                 {
-                    throw new Exception($"½º³À¼¦ ·Ñ¹é ½ÇÆĞ: {step.SnapshotName}");
+                    throw new Exception($"ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ñ¹ï¿½ ï¿½ï¿½ï¿½ï¿½: {step.SnapshotName}");
                 }
 
-                // 2. VM ºÎÆÃ ´ë±â
+                // 2. VM ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½
                 ReportProgress(0, 1, step.Name, result.VMName, TestProgressPhase.WaitingForBoot);
-                Log(TestLogLevel.Info, $"[{result.VMName}] VM ºÎÆÃ ´ë±â Áß...");
+                Log(TestLogLevel.Info, $"[{result.VMName}] VM ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½...");
 
                 if (!await _vmwareService.PowerOnAsync(vmxPath))
                 {
-                    throw new Exception("VM Àü¿ø ÄÑ±â ½ÇÆĞ");
+                    throw new Exception("VM ï¿½ï¿½ï¿½ï¿½ ï¿½Ñ±ï¿½ ï¿½ï¿½ï¿½ï¿½");
                 }
 
                 if (!await _vmwareService.WaitForToolsAsync(vmxPath, 300))
                 {
-                    throw new Exception("VMware Tools ÀÀ´ä ´ë±â ½Ã°£ ÃÊ°ú");
+                    throw new Exception("VMware Tools ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½Ã°ï¿½ ï¿½Ê°ï¿½");
                 }
 
-                // 3. Guest ·Î±×ÀÎ
-                Log(TestLogLevel.Info, $"[{result.VMName}] Guest ·Î±×ÀÎ: {username}");
+                // 3. Guest ï¿½Î±ï¿½ï¿½ï¿½
+                Log(TestLogLevel.Info, $"[{result.VMName}] Guest ï¿½Î±ï¿½ï¿½ï¿½: {username}");
                 if (!await _vmwareService.LoginToGuestAsync(vmxPath, username, password))
                 {
-                    throw new Exception("Guest OS ·Î±×ÀÎ ½ÇÆĞ");
+                    throw new Exception("Guest OS ï¿½Î±ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½");
                 }
 
-                // 4. ÆÄÀÏ º¹»ç (È£½ºÆ® ¡æ VM)
+                // 4. ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ (È£ï¿½ï¿½Æ® ï¿½ï¿½ VM)
                 ReportProgress(0, 1, step.Name, result.VMName, TestProgressPhase.CopyingFiles);
                 foreach (var file in step.FilesToCopyToVM)
                 {
-                    Log(TestLogLevel.Debug, $"[{result.VMName}] ÆÄÀÏ º¹»ç: {file.SourcePath} ¡æ {file.DestinationPath}");
+                    Log(TestLogLevel.Debug, $"[{result.VMName}] ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½: {file.SourcePath} ï¿½ï¿½ {file.DestinationPath}");
 
-                    // ´ë»ó µğ·ºÅä¸® »ı¼º
+                    // ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ä¸® ï¿½ï¿½ï¿½ï¿½
                     var guestDir = Path.GetDirectoryName(file.DestinationPath);
                     if (!string.IsNullOrEmpty(guestDir))
                     {
@@ -211,13 +264,13 @@ namespace AutoRegressionVM.Services.TestExecution
 
                     if (!await _vmwareService.CopyFileToGuestAsync(vmxPath, file.SourcePath, file.DestinationPath))
                     {
-                        throw new Exception($"ÆÄÀÏ º¹»ç ½ÇÆĞ: {file.SourcePath}");
+                        throw new Exception($"ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½: {file.SourcePath}");
                     }
                 }
 
-                // 5. Å×½ºÆ® ½ÇÇà
+                // 5. ï¿½×½ï¿½Æ® ï¿½ï¿½ï¿½ï¿½
                 ReportProgress(0, 1, step.Name, result.VMName, TestProgressPhase.ExecutingTest);
-                Log(TestLogLevel.Info, $"[{result.VMName}] Å×½ºÆ® ½ÇÇà: {step.Execution.ExecutablePath}");
+                Log(TestLogLevel.Info, $"[{result.VMName}] ï¿½×½ï¿½Æ® ï¿½ï¿½ï¿½ï¿½: {step.Execution.ExecutablePath}");
 
                 GuestProcessResult execResult;
                 if (step.Execution.Type == ExecutionType.Script)
@@ -245,7 +298,7 @@ namespace AutoRegressionVM.Services.TestExecution
                     result.ErrorMessage = execResult.ErrorMessage ?? execResult.StandardError;
                 }
 
-                // 6. °á°ú ÆÄÀÏ ¼öÁı
+                // 6. ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
                 ReportProgress(0, 1, step.Name, result.VMName, TestProgressPhase.CollectingResults);
                 foreach (var file in step.ResultFilesToCollect)
                 {
@@ -255,7 +308,7 @@ namespace AutoRegressionVM.Services.TestExecution
                         .Replace("{StepName}", step.Name)
                         .Replace("{Timestamp}", DateTime.Now.ToString("yyyyMMdd_HHmmss"));
 
-                    Log(TestLogLevel.Debug, $"[{result.VMName}] °á°ú ¼öÁı: {file.SourcePath} ¡æ {hostPath}");
+                    Log(TestLogLevel.Debug, $"[{result.VMName}] ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½: {file.SourcePath} ï¿½ï¿½ {hostPath}");
 
                     if (await _vmwareService.CopyFileFromGuestAsync(vmxPath, file.SourcePath, hostPath))
                     {
@@ -263,7 +316,7 @@ namespace AutoRegressionVM.Services.TestExecution
                     }
                 }
 
-                // 7. ½ºÅ©¸°¼¦ Ä¸Ã³ (¿É¼Ç)
+                // 7. ï¿½ï¿½Å©ï¿½ï¿½ï¿½ï¿½ Ä¸Ã³ (ï¿½É¼ï¿½)
                 if (step.CaptureScreenshots)
                 {
                     var screenshotPath = Path.Combine(GetResultDirectory(step), $"{result.VMName}_{step.Name}_final.png");
@@ -273,15 +326,15 @@ namespace AutoRegressionVM.Services.TestExecution
                     }
                 }
 
-                // 8. ¼º°ø ¿©ºÎ ÆÇ´Ü
+                // 8. ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½Ç´ï¿½
                 result.Status = EvaluateSuccess(step.SuccessCriteria, result) 
                     ? TestResultStatus.Passed 
                     : TestResultStatus.Failed;
 
-                // 9. ½º³À¼¦ ·Ñ¹é (¾Ç¼ºÄÚµå Å×½ºÆ®¿ë - ¿Ï·á ÈÄ ¹«Á¶°Ç ·Ñ¹é)
+                // 9. ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ñ¹ï¿½ (ï¿½Ç¼ï¿½ï¿½Úµï¿½ ï¿½×½ï¿½Æ®ï¿½ï¿½ - ï¿½Ï·ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ñ¹ï¿½)
                 if (step.ForceSnapshotRevertAfter)
                 {
-                    Log(TestLogLevel.Info, $"[{result.VMName}] ¿Ï·á ÈÄ ½º³À¼¦ ·Ñ¹é");
+                    Log(TestLogLevel.Info, $"[{result.VMName}] ï¿½Ï·ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ñ¹ï¿½");
                     await _vmwareService.RevertToSnapshotAsync(vmxPath, step.SnapshotName);
                 }
 
@@ -295,7 +348,7 @@ namespace AutoRegressionVM.Services.TestExecution
             {
                 result.Status = TestResultStatus.Error;
                 result.ErrorMessage = ex.Message;
-                Log(TestLogLevel.Error, $"[{result.VMName}] ¿À·ù: {ex.Message}");
+                Log(TestLogLevel.Error, $"[{result.VMName}] ï¿½ï¿½ï¿½ï¿½: {ex.Message}");
             }
             finally
             {
@@ -316,14 +369,14 @@ namespace AutoRegressionVM.Services.TestExecution
                     return false;
             }
 
-            // Æ÷ÇÔ ¹®ÀÚ¿­ Ã¼Å©
+            // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ú¿ï¿½ Ã¼Å©
             if (!string.IsNullOrEmpty(criteria.ContainsText))
             {
                 if (string.IsNullOrEmpty(result.Output) || !result.Output.Contains(criteria.ContainsText))
                     return false;
             }
 
-            // Á¦¿Ü ¹®ÀÚ¿­ Ã¼Å©
+            // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½Ú¿ï¿½ Ã¼Å©
             if (!string.IsNullOrEmpty(criteria.NotContainsText))
             {
                 if (!string.IsNullOrEmpty(result.Output) && result.Output.Contains(criteria.NotContainsText))
@@ -361,7 +414,7 @@ namespace AutoRegressionVM.Services.TestExecution
         public void Cancel()
         {
             _cancellationTokenSource?.Cancel();
-            Log(TestLogLevel.Warning, "Å×½ºÆ® Ãë¼Ò ¿äÃ»µÊ");
+            Log(TestLogLevel.Warning, "ï¿½×½ï¿½Æ® ï¿½ï¿½ï¿½ ï¿½ï¿½Ã»ï¿½ï¿½");
         }
 
         private void ReportProgress(int current, int total, string stepName, string vmName, TestProgressPhase phase)
@@ -385,5 +438,216 @@ namespace AutoRegressionVM.Services.TestExecution
                 VMName = vmName
             });
         }
+
+        #region Event Execution
+
+        /// <summary>
+        /// ì‹œë‚˜ë¦¬ì˜¤ ì´ë²¤íŠ¸ ì‹¤í–‰
+        /// </summary>
+        private async Task<EventExecutionResult> RunEventAsync(ScenarioEvent evt, string scenarioName, ScenarioResult result = null)
+        {
+            var execResult = new EventExecutionResult();
+
+            try
+            {
+                var processStartInfo = BuildProcessStartInfo(evt, scenarioName, result);
+
+                using (var process = new Process { StartInfo = processStartInfo })
+                {
+                    var outputBuilder = new System.Text.StringBuilder();
+                    var errorBuilder = new System.Text.StringBuilder();
+
+                    process.OutputDataReceived += (s, e) =>
+                    {
+                        if (!string.IsNullOrEmpty(e.Data))
+                        {
+                            outputBuilder.AppendLine(e.Data);
+                            Log(TestLogLevel.Debug, $"[Event] {e.Data}");
+                        }
+                    };
+
+                    process.ErrorDataReceived += (s, e) =>
+                    {
+                        if (!string.IsNullOrEmpty(e.Data))
+                        {
+                            errorBuilder.AppendLine(e.Data);
+                            Log(TestLogLevel.Warning, $"[Event Error] {e.Data}");
+                        }
+                    };
+
+                    process.Start();
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+
+                    var completed = await Task.Run(() => process.WaitForExit(evt.TimeoutSeconds * 1000));
+
+                    if (!completed)
+                    {
+                        try { process.Kill(); } catch { }
+                        execResult.Success = false;
+                        execResult.ErrorMessage = $"ì´ë²¤íŠ¸ ì‹¤í–‰ íƒ€ì„ì•„ì›ƒ ({evt.TimeoutSeconds}ì´ˆ ì´ˆê³¼)";
+                        return execResult;
+                    }
+
+                    execResult.ExitCode = process.ExitCode;
+                    execResult.StandardOutput = outputBuilder.ToString();
+                    execResult.StandardError = errorBuilder.ToString();
+                    execResult.Success = process.ExitCode == 0;
+
+                    if (!execResult.Success)
+                    {
+                        execResult.ErrorMessage = $"Exit Code: {process.ExitCode}";
+                        if (!string.IsNullOrWhiteSpace(execResult.StandardError))
+                        {
+                            execResult.ErrorMessage += $"\n{execResult.StandardError}";
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                execResult.Success = false;
+                execResult.ErrorMessage = ex.Message;
+            }
+
+            return execResult;
+        }
+
+        /// <summary>
+        /// í”„ë¡œì„¸ìŠ¤ ì‹œì‘ ì •ë³´ êµ¬ì„±
+        /// </summary>
+        private ProcessStartInfo BuildProcessStartInfo(ScenarioEvent evt, string scenarioName, ScenarioResult result)
+        {
+            string fileName;
+            string arguments;
+
+            // ëª…ë ¹ì— ë§¤í¬ë¡œ ì¹˜í™˜
+            var command = ExpandEventMacros(evt.Command, scenarioName, result);
+            var args = ExpandEventMacros(evt.Arguments ?? "", scenarioName, result);
+
+            switch (evt.Type)
+            {
+                case EventType.PowerShell:
+                    fileName = "powershell.exe";
+                    arguments = $"-ExecutionPolicy Bypass -File \"{command}\" {args}";
+                    break;
+
+                case EventType.BatchFile:
+                    fileName = "cmd.exe";
+                    arguments = $"/c \"{command}\" {args}";
+                    break;
+
+                case EventType.Command:
+                    fileName = "cmd.exe";
+                    arguments = $"/c {command} {args}";
+                    break;
+
+                case EventType.Executable:
+                default:
+                    fileName = command;
+                    arguments = args;
+                    break;
+            }
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = fileName,
+                Arguments = arguments,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = evt.HideWindow,
+                WorkingDirectory = string.IsNullOrEmpty(evt.WorkingDirectory)
+                    ? Environment.CurrentDirectory
+                    : ExpandEventMacros(evt.WorkingDirectory, scenarioName, result)
+            };
+
+            // í™˜ê²½ ë³€ìˆ˜ ì„¤ì •
+            if (evt.EnvironmentVariables != null)
+            {
+                foreach (var envVar in evt.EnvironmentVariables)
+                {
+                    startInfo.EnvironmentVariables[envVar.Key] = ExpandEventMacros(envVar.Value, scenarioName, result);
+                }
+            }
+
+            // ê¸°ë³¸ í™˜ê²½ ë³€ìˆ˜ ì¶”ê°€
+            startInfo.EnvironmentVariables["SCENARIO_NAME"] = scenarioName;
+            startInfo.EnvironmentVariables["TEST_DATE"] = DateTime.Now.ToString("yyyy-MM-dd");
+            startInfo.EnvironmentVariables["TEST_TIME"] = DateTime.Now.ToString("HH:mm:ss");
+
+            if (result != null)
+            {
+                startInfo.EnvironmentVariables["TEST_PASSED"] = result.PassedCount.ToString();
+                startInfo.EnvironmentVariables["TEST_FAILED"] = result.FailedCount.ToString();
+                startInfo.EnvironmentVariables["TEST_TOTAL"] = result.TotalCount.ToString();
+                startInfo.EnvironmentVariables["TEST_SUCCESS"] = (result.FailedCount == 0).ToString();
+            }
+
+            return startInfo;
+        }
+
+        /// <summary>
+        /// ì´ë²¤íŠ¸ ë¬¸ìì—´ì˜ ë§¤í¬ë¡œ ì¹˜í™˜
+        /// </summary>
+        private string ExpandEventMacros(string input, string scenarioName, ScenarioResult result)
+        {
+            if (string.IsNullOrEmpty(input))
+                return input;
+
+            var output = input
+                .Replace("{ScenarioName}", scenarioName)
+                .Replace("{Date}", DateTime.Now.ToString("yyyy-MM-dd"))
+                .Replace("{Time}", DateTime.Now.ToString("HH-mm-ss"))
+                .Replace("{DateTime}", DateTime.Now.ToString("yyyyMMdd_HHmmss"))
+                .Replace("{ResultDir}", Path.Combine("Results", DateTime.Now.ToString("yyyyMMdd")));
+
+            if (result != null)
+            {
+                output = output
+                    .Replace("{PassedCount}", result.PassedCount.ToString())
+                    .Replace("{FailedCount}", result.FailedCount.ToString())
+                    .Replace("{TotalCount}", result.TotalCount.ToString())
+                    .Replace("{Duration}", result.Duration.ToString(@"hh\:mm\:ss"))
+                    .Replace("{Success}", (result.FailedCount == 0).ToString());
+            }
+
+            return output;
+        }
+
+        /// <summary>
+        /// Post ì´ë²¤íŠ¸ ì‹¤í–‰ ì¡°ê±´ í™•ì¸
+        /// </summary>
+        private bool ShouldRunPostEvent(ScenarioEvent postEvent, ScenarioResult result)
+        {
+            switch (postEvent.RunCondition)
+            {
+                case PostEventCondition.Always:
+                    return true;
+
+                case PostEventCondition.OnSuccess:
+                    return result.FailedCount == 0;
+
+                case PostEventCondition.OnFailure:
+                    return result.FailedCount > 0;
+
+                default:
+                    return true;
+            }
+        }
+
+        #endregion
+    }
+
+    /// <summary>
+    /// ì´ë²¤íŠ¸ ì‹¤í–‰ ê²°ê³¼
+    /// </summary>
+    public class EventExecutionResult
+    {
+        public bool Success { get; set; }
+        public int ExitCode { get; set; }
+        public string StandardOutput { get; set; }
+        public string StandardError { get; set; }
+        public string ErrorMessage { get; set; }
     }
 }
