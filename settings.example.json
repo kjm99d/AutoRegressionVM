@@ -1,0 +1,22 @@
+{
+  "VMwareInstallPath": "C:\\Program Files (x86)\\VMware\\VMware Workstation",
+  "DefaultVMPath": "D:\\VMware",
+  "ResultOutputPath": ".\\Results",
+  "ScenariosPath": ".\\Scenarios",
+  "Notification": {
+    "Enabled": true,
+    "Type": "Slack",
+    "SlackWebhookUrl": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
+    "TeamsWebhookUrl": "",
+    "SmtpServer": "",
+    "SmtpPort": 587,
+    "SmtpUsername": "",
+    "SmtpPassword": "",
+    "EmailTo": "",
+    "NotifyOnComplete": true,
+    "NotifyOnFailure": true,
+    "NotifyOnStart": false,
+    "NotifyOnError": true
+  },
+  "RegisteredVMs": []
+}

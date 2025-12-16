@@ -16,6 +16,8 @@ namespace AutoRegressionVM.Views
         private readonly ObservableCollection<TestStep> _steps = new ObservableCollection<TestStep>();
         private TestStep _currentStep;
         private bool _isEditing;
+        private string _existingId;
+        private DateTime _existingCreatedAt;
 
         public ScenarioEditorDialog(IEnumerable<VMInfo> availableVMs, TestScenario existingScenario = null)
         {
@@ -28,6 +30,8 @@ namespace AutoRegressionVM.Views
             if (existingScenario != null)
             {
                 _isEditing = true;
+                _existingId = existingScenario.Id;
+                _existingCreatedAt = existingScenario.CreatedAt;
                 LoadScenario(existingScenario);
             }
         }
@@ -205,6 +209,8 @@ namespace AutoRegressionVM.Views
             if (_isEditing)
             {
                 // Keep original ID and creation date when editing
+                Result.Id = _existingId;
+                Result.CreatedAt = _existingCreatedAt;
             }
 
             DialogResult = true;

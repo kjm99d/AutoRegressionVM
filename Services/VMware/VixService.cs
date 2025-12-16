@@ -1,33 +1,32 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Threading.Tasks;
 using AutoRegressionVM.Models;
 
 namespace AutoRegressionVM.Services.VMware
 {
     /// <summary>
-    /// VMware VIX API¸¦ »ç¿ëÇÑ VM Á¦¾î ¼­ºñ½º
-    /// VIX SDK ¼³Ä¡ ÇÊ¿ä: https://developer.vmware.com/web/sdk/7.0/vix
+    /// VMware vmrun CLIë¥¼ ì‚¬ìš©í•œ VM ì œì–´ ì„œë¹„ìŠ¤
+    /// VMware Workstation Proì— í¬í•¨ëœ vmrun.exe ì‚¬ìš©
     /// </summary>
     public class VixService : IVMwareService, IDisposable
     {
-        // VIX ÇÚµé
-        private dynamic _vixHost;
-        private readonly Dictionary<string, dynamic> _openedVMs = new Dictionary<string, dynamic>();
-        private readonly Dictionary<string, bool> _loggedInVMs = new Dictionary<string, bool>();
-
-        private string _vmwareInstallPath;
+        private readonly Dictionary<string, GuestCredentials> _guestCredentials = new Dictionary<string, GuestCredentials>();
+        private string _vmrunPath;
         private bool _isConnected;
 
         public bool IsConnected => _isConnected;
 
         public VixService(string vmwareInstallPath = null)
         {
-            _vmwareInstallPath = vmwareInstallPath ?? @"C:\Program Files (x86)\VMware\VMware Workstation";
+            var basePath = vmwareInstallPath ?? @"C:\Program Files (x86)\VMware\VMware Workstation";
+            _vmrunPath = Path.Combine(basePath, "vmrun.exe");
         }
 
-        #region ¿¬°á °ü¸®
+        #region ì—°ê²° ê´€ë¦¬
 
         public async Task<bool> ConnectAsync()
         {
@@ -35,22 +34,30 @@ namespace AutoRegressionVM.Services.VMware
             {
                 try
                 {
-                    // VIX COM °´Ã¼ »ı¼º
-                    // ½ÇÁ¦ ±¸Çö ½Ã VixCOM.VixLib ÂüÁ¶ ÇÊ¿ä
-                    Type vixType = Type.GetTypeFromProgID("VixCOM.VixLib");
-                    if (vixType == null)
+                    if (!File.Exists(_vmrunPath))
                     {
-                        throw new InvalidOperationException(
-                            "VIX COMÀÌ µî·ÏµÇÁö ¾Ê¾Ò½À´Ï´Ù. VMware VIX SDK¸¦ ¼³Ä¡ÇÏ¼¼¿ä.");
+                        // ë‹¤ë¥¸ ê²½ë¡œ ì‹œë„
+                        var altPath = @"C:\Program Files\VMware\VMware Workstation\vmrun.exe";
+                        if (File.Exists(altPath))
+                        {
+                            _vmrunPath = altPath;
+                        }
+                        else
+                        {
+                            throw new FileNotFoundException(
+                                $"vmrun.exeë¥¼ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤. VMware Workstationì´ ì„¤ì¹˜ë˜ì–´ ìˆëŠ”ì§€ í™•ì¸í•˜ì„¸ìš”.\n" +
+                                $"í™•ì¸í•œ ê²½ë¡œ:\n- {_vmrunPath}\n- {altPath}");
+                        }
                     }
 
-                    _vixHost = Activator.CreateInstance(vixType);
+                    // vmrun ë²„ì „ í™•ì¸ìœ¼ë¡œ ì •ìƒ ë™ì‘ í…ŒìŠ¤íŠ¸
+                    var result = RunVmrun("", timeoutSeconds: 10);
                     _isConnected = true;
                     return true;
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"VIX ¿¬°á ½ÇÆĞ: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"VMware ì—°ê²° ì‹¤íŒ¨: {ex.Message}");
                     _isConnected = false;
                     return false;
                 }
@@ -59,67 +66,142 @@ namespace AutoRegressionVM.Services.VMware
 
         public void Disconnect()
         {
-            foreach (var vm in _openedVMs.Values)
-            {
-                try
-                {
-                    // VM ÇÚµé ÇØÁ¦
-                }
-                catch { }
-            }
-
-            _openedVMs.Clear();
-            _loggedInVMs.Clear();
-            _vixHost = null;
+            _guestCredentials.Clear();
             _isConnected = false;
         }
 
         #endregion
 
-        #region VM °ü¸®
+        #region VM ëª©ë¡ ì¡°íšŒ
 
-        public async Task<bool> OpenVMAsync(string vmxPath)
+        public async Task<List<VMInfo>> GetRegisteredVMsAsync()
         {
-            if (!_isConnected) return false;
-
             return await Task.Run(() =>
             {
+                var vmList = new List<VMInfo>();
+
                 try
                 {
-                    if (_openedVMs.ContainsKey(vmxPath))
-                        return true;
+                    // VMware inventory íŒŒì¼ ê²½ë¡œ
+                    var appData = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+                    var inventoryPath = Path.Combine(appData, "VMware", "inventory.vmls");
 
-                    // VIX: Host.OpenVM()
-                    // ½ÇÁ¦ ±¸Çö ÇÊ¿ä
-                    System.Diagnostics.Debug.WriteLine($"[VIX] Opening VM: {vmxPath}");
+                    if (!File.Exists(inventoryPath))
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Inventory íŒŒì¼ì„ ì°¾ì„ ìˆ˜ ì—†ìŠµë‹ˆë‹¤: {inventoryPath}");
+                        return vmList;
+                    }
 
-                    // ÇÃ·¹ÀÌ½ºÈ¦´õ - ½ÇÁ¦ VIX ±¸Çö ½Ã ±³Ã¼
-                    _openedVMs[vmxPath] = new object();
-                    return true;
+                    var lines = File.ReadAllLines(inventoryPath);
+                    var vmEntries = new Dictionary<string, Dictionary<string, string>>();
+
+                    // inventory.vmls íŒŒì‹±
+                    foreach (var line in lines)
+                    {
+                        var trimmed = line.Trim();
+                        if (string.IsNullOrEmpty(trimmed) || !trimmed.Contains("="))
+                            continue;
+
+                        var eqIndex = trimmed.IndexOf('=');
+                        var key = trimmed.Substring(0, eqIndex).Trim();
+                        var value = trimmed.Substring(eqIndex + 1).Trim().Trim('"');
+
+                        // vmlistN.property í˜•ì‹ íŒŒì‹±
+                        if (key.StartsWith("vmlist"))
+                        {
+                            var dotIndex = key.IndexOf('.');
+                            if (dotIndex > 0)
+                            {
+                                var vmKey = key.Substring(0, dotIndex);
+                                var propName = key.Substring(dotIndex + 1);
+
+                                if (!vmEntries.ContainsKey(vmKey))
+                                    vmEntries[vmKey] = new Dictionary<string, string>();
+
+                                vmEntries[vmKey][propName] = value;
+                            }
+                        }
+                    }
+
+                    // VMInfo ê°ì²´ ìƒì„±
+                    foreach (var entry in vmEntries.Values)
+                    {
+                        if (entry.TryGetValue("config", out var vmxPath) && !string.IsNullOrEmpty(vmxPath))
+                        {
+                            var vmInfo = new VMInfo
+                            {
+                                VmxPath = vmxPath,
+                                Name = entry.TryGetValue("DisplayName", out var displayName) && !string.IsNullOrEmpty(displayName)
+                                    ? displayName
+                                    : Path.GetFileNameWithoutExtension(vmxPath)
+                            };
+
+                            vmList.Add(vmInfo);
+                        }
+                    }
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"VM ¿­±â ½ÇÆĞ: {ex.Message}");
-                    return false;
+                    System.Diagnostics.Debug.WriteLine($"VM ëª©ë¡ ì¡°íšŒ ì‹¤íŒ¨: {ex.Message}");
                 }
+
+                return vmList;
             });
+        }
+
+        public async Task<List<string>> GetRunningVMsAsync()
+        {
+            return await Task.Run(() =>
+            {
+                var runningVMs = new List<string>();
+
+                try
+                {
+                    var result = RunVmrun("list");
+                    if (result.ExitCode == 0)
+                    {
+                        var lines = result.Output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var line in lines)
+                        {
+                            // ì²« ì¤„ì€ "Total running VMs: N" í˜•ì‹
+                            if (!line.StartsWith("Total") && line.EndsWith(".vmx", StringComparison.OrdinalIgnoreCase))
+                            {
+                                runningVMs.Add(line.Trim());
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"ì‹¤í–‰ ì¤‘ì¸ VM ì¡°íšŒ ì‹¤íŒ¨: {ex.Message}");
+                }
+
+                return runningVMs;
+            });
+        }
+
+        #endregion
+
+        #region VM ì œì–´
+
+        public async Task<bool> OpenVMAsync(string vmxPath)
+        {
+            // vmrunì€ ëª…ì‹œì  Openì´ í•„ìš” ì—†ìŒ
+            return await Task.FromResult(File.Exists(vmxPath));
         }
 
         public async Task<bool> PowerOnAsync(string vmxPath)
         {
-            if (!await OpenVMAsync(vmxPath)) return false;
-
             return await Task.Run(() =>
             {
                 try
                 {
-                    // VIX: VM.PowerOn()
-                    System.Diagnostics.Debug.WriteLine($"[VIX] Power On: {vmxPath}");
-                    return true;
+                    var result = RunVmrun($"start \"{vmxPath}\" nogui");
+                    return result.ExitCode == 0;
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Power On ½ÇÆĞ: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"Power On ì‹¤íŒ¨: {ex.Message}");
                     return false;
                 }
             });
@@ -127,20 +209,18 @@ namespace AutoRegressionVM.Services.VMware
 
         public async Task<bool> PowerOffAsync(string vmxPath)
         {
-            if (!await OpenVMAsync(vmxPath)) return false;
-
             return await Task.Run(() =>
             {
                 try
                 {
-                    // VIX: VM.PowerOff()
-                    System.Diagnostics.Debug.WriteLine($"[VIX] Power Off: {vmxPath}");
-                    _loggedInVMs.Remove(vmxPath);
-                    return true;
+                    // soft: Guest OS ì •ìƒ ì¢…ë£Œ ì‹œë„
+                    var result = RunVmrun($"stop \"{vmxPath}\" soft");
+                    _guestCredentials.Remove(vmxPath);
+                    return result.ExitCode == 0;
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Power Off ½ÇÆĞ: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"Power Off ì‹¤íŒ¨: {ex.Message}");
                     return false;
                 }
             });
@@ -148,14 +228,16 @@ namespace AutoRegressionVM.Services.VMware
 
         public async Task<VMPowerState> GetPowerStateAsync(string vmxPath)
         {
-            if (!await OpenVMAsync(vmxPath)) return VMPowerState.Unknown;
-
             return await Task.Run(() =>
             {
                 try
                 {
-                    // VIX: VM.GetProperties()·Î Àü¿ø »óÅÂ È®ÀÎ
-                    return VMPowerState.PoweredOn; // ÇÃ·¹ÀÌ½ºÈ¦´õ
+                    var result = RunVmrun("list");
+                    if (result.Output.Contains(vmxPath))
+                    {
+                        return VMPowerState.PoweredOn;
+                    }
+                    return VMPowerState.PoweredOff;
                 }
                 catch
                 {
@@ -166,19 +248,17 @@ namespace AutoRegressionVM.Services.VMware
 
         public async Task<bool> WaitForToolsAsync(string vmxPath, int timeoutSeconds = 300)
         {
-            if (!await OpenVMAsync(vmxPath)) return false;
-
             return await Task.Run(() =>
             {
                 try
                 {
-                    // VIX: VM.WaitForToolsInGuest()
-                    System.Diagnostics.Debug.WriteLine($"[VIX] Waiting for VMware Tools: {vmxPath}");
-                    return true;
+                    var result = RunVmrun($"checkToolsState \"{vmxPath}\"", timeoutSeconds);
+                    // "running"ì´ë©´ Toolsê°€ ì¤€ë¹„ëœ ìƒíƒœ
+                    return result.Output.Contains("running");
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Tools ´ë±â ½ÇÆĞ: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"Tools ëŒ€ê¸° ì‹¤íŒ¨: {ex.Message}");
                     return false;
                 }
             });
@@ -186,24 +266,34 @@ namespace AutoRegressionVM.Services.VMware
 
         #endregion
 
-        #region ½º³À¼¦ °ü¸®
+        #region ìŠ¤ëƒ…ìƒ· ê´€ë¦¬
 
         public async Task<List<Snapshot>> GetSnapshotsAsync(string vmxPath)
         {
             var snapshots = new List<Snapshot>();
-            if (!await OpenVMAsync(vmxPath)) return snapshots;
 
             return await Task.Run(() =>
             {
                 try
                 {
-                    // VIX: VM.GetRootSnapshot(), Snapshot.GetChild() µîÀ¸·Î Æ®¸® ¼øÈ¸
-                    System.Diagnostics.Debug.WriteLine($"[VIX] Getting snapshots: {vmxPath}");
+                    var result = RunVmrun($"listSnapshots \"{vmxPath}\"");
+                    if (result.ExitCode == 0)
+                    {
+                        var lines = result.Output.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                        foreach (var line in lines)
+                        {
+                            // ì²« ì¤„ì€ "Total snapshots: N" í˜•ì‹
+                            if (!line.StartsWith("Total"))
+                            {
+                                snapshots.Add(new Snapshot { Name = line.Trim() });
+                            }
+                        }
+                    }
                     return snapshots;
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"½º³À¼¦ Á¶È¸ ½ÇÆĞ: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"ìŠ¤ëƒ…ìƒ· ì¡°íšŒ ì‹¤íŒ¨: {ex.Message}");
                     return snapshots;
                 }
             });
@@ -211,20 +301,17 @@ namespace AutoRegressionVM.Services.VMware
 
         public async Task<bool> RevertToSnapshotAsync(string vmxPath, string snapshotName)
         {
-            if (!await OpenVMAsync(vmxPath)) return false;
-
             return await Task.Run(() =>
             {
                 try
                 {
-                    // VIX: VM.RevertToSnapshot()
-                    System.Diagnostics.Debug.WriteLine($"[VIX] Reverting to snapshot '{snapshotName}': {vmxPath}");
-                    _loggedInVMs.Remove(vmxPath);
-                    return true;
+                    var result = RunVmrun($"revertToSnapshot \"{vmxPath}\" \"{snapshotName}\"", 120);
+                    _guestCredentials.Remove(vmxPath);
+                    return result.ExitCode == 0;
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"½º³À¼¦ ·Ñ¹é ½ÇÆĞ: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"ìŠ¤ëƒ…ìƒ· ë³µì› ì‹¤íŒ¨: {ex.Message}");
                     return false;
                 }
             });
@@ -232,19 +319,16 @@ namespace AutoRegressionVM.Services.VMware
 
         public async Task<bool> CreateSnapshotAsync(string vmxPath, string snapshotName, string description = null)
         {
-            if (!await OpenVMAsync(vmxPath)) return false;
-
             return await Task.Run(() =>
             {
                 try
                 {
-                    // VIX: VM.CreateSnapshot()
-                    System.Diagnostics.Debug.WriteLine($"[VIX] Creating snapshot '{snapshotName}': {vmxPath}");
-                    return true;
+                    var result = RunVmrun($"snapshot \"{vmxPath}\" \"{snapshotName}\"", 120);
+                    return result.ExitCode == 0;
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"½º³À¼¦ »ı¼º ½ÇÆĞ: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"ìŠ¤ëƒ…ìƒ· ìƒì„± ì‹¤íŒ¨: {ex.Message}");
                     return false;
                 }
             });
@@ -252,19 +336,16 @@ namespace AutoRegressionVM.Services.VMware
 
         public async Task<bool> DeleteSnapshotAsync(string vmxPath, string snapshotName)
         {
-            if (!await OpenVMAsync(vmxPath)) return false;
-
             return await Task.Run(() =>
             {
                 try
                 {
-                    // VIX: VM.RemoveSnapshot()
-                    System.Diagnostics.Debug.WriteLine($"[VIX] Deleting snapshot '{snapshotName}': {vmxPath}");
-                    return true;
+                    var result = RunVmrun($"deleteSnapshot \"{vmxPath}\" \"{snapshotName}\"", 120);
+                    return result.ExitCode == 0;
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"½º³À¼¦ »èÁ¦ ½ÇÆĞ: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"ìŠ¤ëƒ…ìƒ· ì‚­ì œ ì‹¤íŒ¨: {ex.Message}");
                     return false;
                 }
             });
@@ -272,34 +353,24 @@ namespace AutoRegressionVM.Services.VMware
 
         #endregion
 
-        #region Guest ÀÛ¾÷
+        #region Guest ì‘ì—…
 
         public async Task<bool> LoginToGuestAsync(string vmxPath, string username, string password)
         {
-            if (!await OpenVMAsync(vmxPath)) return false;
-
             return await Task.Run(() =>
             {
-                try
-                {
-                    // VIX: VM.LoginInGuest()
-                    System.Diagnostics.Debug.WriteLine($"[VIX] Guest login as '{username}': {vmxPath}");
-                    _loggedInVMs[vmxPath] = true;
-                    return true;
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Guest ·Î±×ÀÎ ½ÇÆĞ: {ex.Message}");
-                    return false;
-                }
+                // vmrunì€ ê° ëª…ë ¹ì— -gu/-gp ì˜µì…˜ìœ¼ë¡œ ì¸ì¦
+                // ì—¬ê¸°ì„œëŠ” ìê²© ì¦ëª…ì„ ì €ì¥í•´ë‘ê³  ì´í›„ ëª…ë ¹ì—ì„œ ì‚¬ìš©
+                _guestCredentials[vmxPath] = new GuestCredentials { Username = username, Password = password };
+                return true;
             });
         }
 
         public async Task<bool> CopyFileToGuestAsync(string vmxPath, string hostPath, string guestPath)
         {
-            if (!_loggedInVMs.ContainsKey(vmxPath))
+            if (!_guestCredentials.TryGetValue(vmxPath, out var cred))
             {
-                System.Diagnostics.Debug.WriteLine("Guest ·Î±×ÀÎÀÌ ÇÊ¿äÇÕ´Ï´Ù.");
+                System.Diagnostics.Debug.WriteLine("Guest ë¡œê·¸ì¸ì´ í•„ìš”í•©ë‹ˆë‹¤.");
                 return false;
             }
 
@@ -307,13 +378,14 @@ namespace AutoRegressionVM.Services.VMware
             {
                 try
                 {
-                    // VIX: VM.CopyFileFromHostToGuest()
-                    System.Diagnostics.Debug.WriteLine($"[VIX] Copy to guest: {hostPath} -> {guestPath}");
-                    return true;
+                    var result = RunVmrun(
+                        $"-gu \"{cred.Username}\" -gp \"{cred.Password}\" " +
+                        $"copyFileFromHostToGuest \"{vmxPath}\" \"{hostPath}\" \"{guestPath}\"");
+                    return result.ExitCode == 0;
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"ÆÄÀÏ º¹»ç(¡æGuest) ½ÇÆĞ: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"íŒŒì¼ ë³µì‚¬(â†’Guest) ì‹¤íŒ¨: {ex.Message}");
                     return false;
                 }
             });
@@ -321,9 +393,9 @@ namespace AutoRegressionVM.Services.VMware
 
         public async Task<bool> CopyFileFromGuestAsync(string vmxPath, string guestPath, string hostPath)
         {
-            if (!_loggedInVMs.ContainsKey(vmxPath))
+            if (!_guestCredentials.TryGetValue(vmxPath, out var cred))
             {
-                System.Diagnostics.Debug.WriteLine("Guest ·Î±×ÀÎÀÌ ÇÊ¿äÇÕ´Ï´Ù.");
+                System.Diagnostics.Debug.WriteLine("Guest ë¡œê·¸ì¸ì´ í•„ìš”í•©ë‹ˆë‹¤.");
                 return false;
             }
 
@@ -331,20 +403,21 @@ namespace AutoRegressionVM.Services.VMware
             {
                 try
                 {
-                    // È£½ºÆ® µğ·ºÅä¸® »ı¼º
+                    // í˜¸ìŠ¤íŠ¸ ë””ë ‰í† ë¦¬ ìƒì„±
                     var hostDir = Path.GetDirectoryName(hostPath);
                     if (!string.IsNullOrEmpty(hostDir) && !Directory.Exists(hostDir))
                     {
                         Directory.CreateDirectory(hostDir);
                     }
 
-                    // VIX: VM.CopyFileFromGuestToHost()
-                    System.Diagnostics.Debug.WriteLine($"[VIX] Copy from guest: {guestPath} -> {hostPath}");
-                    return true;
+                    var result = RunVmrun(
+                        $"-gu \"{cred.Username}\" -gp \"{cred.Password}\" " +
+                        $"copyFileFromGuestToHost \"{vmxPath}\" \"{guestPath}\" \"{hostPath}\"");
+                    return result.ExitCode == 0;
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"ÆÄÀÏ º¹»ç(¡çGuest) ½ÇÆĞ: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"íŒŒì¼ ë³µì‚¬(â†Guest) ì‹¤íŒ¨: {ex.Message}");
                     return false;
                 }
             });
@@ -352,19 +425,20 @@ namespace AutoRegressionVM.Services.VMware
 
         public async Task<bool> CreateDirectoryInGuestAsync(string vmxPath, string guestPath)
         {
-            if (!_loggedInVMs.ContainsKey(vmxPath)) return false;
+            if (!_guestCredentials.TryGetValue(vmxPath, out var cred)) return false;
 
             return await Task.Run(() =>
             {
                 try
                 {
-                    // VIX: VM.CreateDirectoryInGuest()
-                    System.Diagnostics.Debug.WriteLine($"[VIX] Create directory in guest: {guestPath}");
-                    return true;
+                    var result = RunVmrun(
+                        $"-gu \"{cred.Username}\" -gp \"{cred.Password}\" " +
+                        $"createDirectoryInGuest \"{vmxPath}\" \"{guestPath}\"");
+                    return result.ExitCode == 0;
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"µğ·ºÅä¸® »ı¼º ½ÇÆĞ: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"ë””ë ‰í† ë¦¬ ìƒì„± ì‹¤íŒ¨: {ex.Message}");
                     return false;
                 }
             });
@@ -372,19 +446,20 @@ namespace AutoRegressionVM.Services.VMware
 
         public async Task<bool> DeleteFileInGuestAsync(string vmxPath, string guestPath)
         {
-            if (!_loggedInVMs.ContainsKey(vmxPath)) return false;
+            if (!_guestCredentials.TryGetValue(vmxPath, out var cred)) return false;
 
             return await Task.Run(() =>
             {
                 try
                 {
-                    // VIX: VM.DeleteFileInGuest()
-                    System.Diagnostics.Debug.WriteLine($"[VIX] Delete in guest: {guestPath}");
-                    return true;
+                    var result = RunVmrun(
+                        $"-gu \"{cred.Username}\" -gp \"{cred.Password}\" " +
+                        $"deleteFileInGuest \"{vmxPath}\" \"{guestPath}\"");
+                    return result.ExitCode == 0;
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"ÆÄÀÏ »èÁ¦ ½ÇÆĞ: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"íŒŒì¼ ì‚­ì œ ì‹¤íŒ¨: {ex.Message}");
                     return false;
                 }
             });
@@ -392,14 +467,16 @@ namespace AutoRegressionVM.Services.VMware
 
         public async Task<bool> FileExistsInGuestAsync(string vmxPath, string guestPath)
         {
-            if (!_loggedInVMs.ContainsKey(vmxPath)) return false;
+            if (!_guestCredentials.TryGetValue(vmxPath, out var cred)) return false;
 
             return await Task.Run(() =>
             {
                 try
                 {
-                    // VIX: VM.FileExistsInGuest()
-                    return true;
+                    var result = RunVmrun(
+                        $"-gu \"{cred.Username}\" -gp \"{cred.Password}\" " +
+                        $"fileExistsInGuest \"{vmxPath}\" \"{guestPath}\"");
+                    return result.ExitCode == 0;
                 }
                 catch
                 {
@@ -412,10 +489,10 @@ namespace AutoRegressionVM.Services.VMware
         {
             var result = new GuestProcessResult();
 
-            if (!_loggedInVMs.ContainsKey(vmxPath))
+            if (!_guestCredentials.TryGetValue(vmxPath, out var cred))
             {
                 result.Success = false;
-                result.ErrorMessage = "Guest ·Î±×ÀÎÀÌ ÇÊ¿äÇÕ´Ï´Ù.";
+                result.ErrorMessage = "Guest ë¡œê·¸ì¸ì´ í•„ìš”í•©ë‹ˆë‹¤.";
                 return result;
             }
 
@@ -423,11 +500,15 @@ namespace AutoRegressionVM.Services.VMware
             {
                 try
                 {
-                    // VIX: VM.RunProgramInGuest()
-                    System.Diagnostics.Debug.WriteLine($"[VIX] Run program: {programPath} {arguments}");
+                    var vmrunResult = RunVmrun(
+                        $"-gu \"{cred.Username}\" -gp \"{cred.Password}\" " +
+                        $"runProgramInGuest \"{vmxPath}\" -noWait -activeWindow \"{programPath}\" {arguments}",
+                        timeoutSeconds);
 
-                    result.Success = true;
-                    result.ExitCode = 0;
+                    result.Success = vmrunResult.ExitCode == 0;
+                    result.ExitCode = vmrunResult.ExitCode;
+                    result.StandardOutput = vmrunResult.Output;
+                    result.StandardError = vmrunResult.Error;
                     return result;
                 }
                 catch (Exception ex)
@@ -443,10 +524,10 @@ namespace AutoRegressionVM.Services.VMware
         {
             var result = new GuestProcessResult();
 
-            if (!_loggedInVMs.ContainsKey(vmxPath))
+            if (!_guestCredentials.TryGetValue(vmxPath, out var cred))
             {
                 result.Success = false;
-                result.ErrorMessage = "Guest ·Î±×ÀÎÀÌ ÇÊ¿äÇÕ´Ï´Ù.";
+                result.ErrorMessage = "Guest ë¡œê·¸ì¸ì´ í•„ìš”í•©ë‹ˆë‹¤.";
                 return result;
             }
 
@@ -454,11 +535,15 @@ namespace AutoRegressionVM.Services.VMware
             {
                 try
                 {
-                    // VIX: VM.RunScriptInGuest()
-                    System.Diagnostics.Debug.WriteLine($"[VIX] Run script ({interpreter}): {scriptText.Substring(0, Math.Min(50, scriptText.Length))}...");
+                    var vmrunResult = RunVmrun(
+                        $"-gu \"{cred.Username}\" -gp \"{cred.Password}\" " +
+                        $"runScriptInGuest \"{vmxPath}\" \"{interpreter}\" \"{scriptText}\"",
+                        timeoutSeconds);
 
-                    result.Success = true;
-                    result.ExitCode = 0;
+                    result.Success = vmrunResult.ExitCode == 0;
+                    result.ExitCode = vmrunResult.ExitCode;
+                    result.StandardOutput = vmrunResult.Output;
+                    result.StandardError = vmrunResult.Error;
                     return result;
                 }
                 catch (Exception ex)
@@ -472,26 +557,23 @@ namespace AutoRegressionVM.Services.VMware
 
         public async Task<bool> CaptureScreenshotAsync(string vmxPath, string hostSavePath)
         {
-            if (!await OpenVMAsync(vmxPath)) return false;
-
             return await Task.Run(() =>
             {
                 try
                 {
-                    // È£½ºÆ® µğ·ºÅä¸® »ı¼º
+                    // í˜¸ìŠ¤íŠ¸ ë””ë ‰í† ë¦¬ ìƒì„±
                     var hostDir = Path.GetDirectoryName(hostSavePath);
                     if (!string.IsNullOrEmpty(hostDir) && !Directory.Exists(hostDir))
                     {
                         Directory.CreateDirectory(hostDir);
                     }
 
-                    // VIX: VM.CaptureScreenImage()
-                    System.Diagnostics.Debug.WriteLine($"[VIX] Capture screenshot: {hostSavePath}");
-                    return true;
+                    var result = RunVmrun($"captureScreen \"{vmxPath}\" \"{hostSavePath}\"");
+                    return result.ExitCode == 0;
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"½ºÅ©¸°¼¦ Ä¸Ã³ ½ÇÆĞ: {ex.Message}");
+                    System.Diagnostics.Debug.WriteLine($"ìŠ¤í¬ë¦°ìƒ· ìº¡ì²˜ ì‹¤íŒ¨: {ex.Message}");
                     return false;
                 }
             });
@@ -499,9 +581,74 @@ namespace AutoRegressionVM.Services.VMware
 
         #endregion
 
+        #region ë‚´ë¶€ ë©”ì„œë“œ
+
+        private VmrunResult RunVmrun(string arguments, int timeoutSeconds = 60)
+        {
+            var result = new VmrunResult();
+
+            var psi = new ProcessStartInfo
+            {
+                FileName = _vmrunPath,
+                Arguments = arguments,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8
+            };
+
+            using (var process = new Process { StartInfo = psi })
+            {
+                var outputBuilder = new StringBuilder();
+                var errorBuilder = new StringBuilder();
+
+                process.OutputDataReceived += (s, e) =>
+                {
+                    if (e.Data != null) outputBuilder.AppendLine(e.Data);
+                };
+                process.ErrorDataReceived += (s, e) =>
+                {
+                    if (e.Data != null) errorBuilder.AppendLine(e.Data);
+                };
+
+                process.Start();
+                process.BeginOutputReadLine();
+                process.BeginErrorReadLine();
+
+                if (!process.WaitForExit(timeoutSeconds * 1000))
+                {
+                    process.Kill();
+                    throw new TimeoutException($"vmrun ëª…ë ¹ì´ {timeoutSeconds}ì´ˆ ë‚´ì— ì™„ë£Œë˜ì§€ ì•Šì•˜ìŠµë‹ˆë‹¤.");
+                }
+
+                result.ExitCode = process.ExitCode;
+                result.Output = outputBuilder.ToString();
+                result.Error = errorBuilder.ToString();
+            }
+
+            return result;
+        }
+
+        #endregion
+
         public void Dispose()
         {
             Disconnect();
+        }
+
+        private class GuestCredentials
+        {
+            public string Username { get; set; }
+            public string Password { get; set; }
+        }
+
+        private class VmrunResult
+        {
+            public int ExitCode { get; set; }
+            public string Output { get; set; }
+            public string Error { get; set; }
         }
     }
 }

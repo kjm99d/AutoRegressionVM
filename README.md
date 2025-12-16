@@ -16,14 +16,12 @@ VMware 가상 머신을 활용한 자동화된 회귀 테스트 도구입니다.
 
 - Windows 10/11
 - .NET Framework 4.7.2 이상
-- VMware Workstation 또는 VMware Player
-- VMware VIX SDK
+- VMware Workstation Pro (VIX SDK 포함)
 
 ## 설치
 
 1. 저장소를 클론합니다.
 2. Visual Studio에서 솔루션을 열고 빌드합니다.
-3. VMware VIX SDK가 설치되어 있는지 확인합니다.
 
 ## 사용법
 

@@ -5,122 +5,132 @@ using AutoRegressionVM.Models;
 namespace AutoRegressionVM.Services.VMware
 {
     /// <summary>
-    /// VMware Á¦¾î ¼­ºñ½º ÀÎÅÍÆäÀÌ½º
+    /// VMware ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì½ï¿½
     /// </summary>
     public interface IVMwareService
     {
         /// <summary>
-        /// VMware È£½ºÆ®¿¡ ¿¬°á
+        /// VMware È£ï¿½ï¿½Æ®ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         Task<bool> ConnectAsync();
 
         /// <summary>
-        /// ¿¬°á ÇØÁ¦
+        /// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         void Disconnect();
 
         /// <summary>
-        /// ¿¬°á »óÅÂ
+        /// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         bool IsConnected { get; }
 
-        #region VM °ü¸®
+        /// <summary>
+        /// VMwareì— ë“±ë¡ëœ ëª¨ë“  VM ëª©ë¡ ì¡°íšŒ
+        /// </summary>
+        Task<List<VMInfo>> GetRegisteredVMsAsync();
 
         /// <summary>
-        /// VM ¿­±â
+        /// í˜„ì¬ ì‹¤í–‰ ì¤‘ì¸ VM ëª©ë¡ ì¡°íšŒ
+        /// </summary>
+        Task<List<string>> GetRunningVMsAsync();
+
+        #region VM ï¿½ï¿½ï¿½ï¿½
+
+        /// <summary>
+        /// VM ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         Task<bool> OpenVMAsync(string vmxPath);
 
         /// <summary>
-        /// VM Àü¿ø ÄÑ±â
+        /// VM ï¿½ï¿½ï¿½ï¿½ ï¿½Ñ±ï¿½
         /// </summary>
         Task<bool> PowerOnAsync(string vmxPath);
 
         /// <summary>
-        /// VM Àü¿ø ²ô±â
+        /// VM ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         Task<bool> PowerOffAsync(string vmxPath);
 
         /// <summary>
-        /// VM Àü¿ø »óÅÂ Á¶È¸
+        /// VM ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½È¸
         /// </summary>
         Task<VMPowerState> GetPowerStateAsync(string vmxPath);
 
         /// <summary>
-        /// VMware Tools ÁØºñ ´ë±â
+        /// VMware Tools ï¿½Øºï¿½ ï¿½ï¿½ï¿½
         /// </summary>
         Task<bool> WaitForToolsAsync(string vmxPath, int timeoutSeconds = 300);
 
         #endregion
 
-        #region ½º³À¼¦ °ü¸®
+        #region ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
 
         /// <summary>
-        /// ½º³À¼¦ ¸ñ·Ï Á¶È¸
+        /// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½È¸
         /// </summary>
         Task<List<Snapshot>> GetSnapshotsAsync(string vmxPath);
 
         /// <summary>
-        /// ½º³À¼¦À¸·Î ·Ñ¹é
+        /// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ñ¹ï¿½
         /// </summary>
         Task<bool> RevertToSnapshotAsync(string vmxPath, string snapshotName);
 
         /// <summary>
-        /// ½º³À¼¦ »ı¼º
+        /// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         Task<bool> CreateSnapshotAsync(string vmxPath, string snapshotName, string description = null);
 
         /// <summary>
-        /// ½º³À¼¦ »èÁ¦
+        /// ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         Task<bool> DeleteSnapshotAsync(string vmxPath, string snapshotName);
 
         #endregion
 
-        #region Guest ÀÛ¾÷ (VIX)
+        #region Guest ï¿½Û¾ï¿½ (VIX)
 
         /// <summary>
-        /// Guest OS ·Î±×ÀÎ
+        /// Guest OS ï¿½Î±ï¿½ï¿½ï¿½
         /// </summary>
         Task<bool> LoginToGuestAsync(string vmxPath, string username, string password);
 
         /// <summary>
-        /// È£½ºÆ® ¡æ VM ÆÄÀÏ º¹»ç
+        /// È£ï¿½ï¿½Æ® ï¿½ï¿½ VM ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         Task<bool> CopyFileToGuestAsync(string vmxPath, string hostPath, string guestPath);
 
         /// <summary>
-        /// VM ¡æ È£½ºÆ® ÆÄÀÏ º¹»ç
+        /// VM ï¿½ï¿½ È£ï¿½ï¿½Æ® ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         Task<bool> CopyFileFromGuestAsync(string vmxPath, string guestPath, string hostPath);
 
         /// <summary>
-        /// VM ³» µğ·ºÅä¸® »ı¼º
+        /// VM ï¿½ï¿½ ï¿½ï¿½ï¿½ä¸® ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         Task<bool> CreateDirectoryInGuestAsync(string vmxPath, string guestPath);
 
         /// <summary>
-        /// VM ³» ÆÄÀÏ »èÁ¦
+        /// VM ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         Task<bool> DeleteFileInGuestAsync(string vmxPath, string guestPath);
 
         /// <summary>
-        /// VM ³» ÆÄÀÏ Á¸Àç ¿©ºÎ È®ÀÎ
+        /// VM ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ È®ï¿½ï¿½
         /// </summary>
         Task<bool> FileExistsInGuestAsync(string vmxPath, string guestPath);
 
         /// <summary>
-        /// VM ³» ÇÁ·Î±×·¥ ½ÇÇà
+        /// VM ï¿½ï¿½ ï¿½ï¿½ï¿½Î±×·ï¿½ ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         Task<GuestProcessResult> RunProgramInGuestAsync(string vmxPath, string programPath, string arguments, int timeoutSeconds = 300);
 
         /// <summary>
-        /// VM ³» ½ºÅ©¸³Æ® ½ÇÇà
+        /// VM ï¿½ï¿½ ï¿½ï¿½Å©ï¿½ï¿½Æ® ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         Task<GuestProcessResult> RunScriptInGuestAsync(string vmxPath, string interpreter, string scriptText, int timeoutSeconds = 300);
 
         /// <summary>
-        /// VM ½ºÅ©¸°¼¦ Ä¸Ã³
+        /// VM ï¿½ï¿½Å©ï¿½ï¿½ï¿½ï¿½ Ä¸Ã³
         /// </summary>
         Task<bool> CaptureScreenshotAsync(string vmxPath, string hostSavePath);
 
@@ -128,7 +138,7 @@ namespace AutoRegressionVM.Services.VMware
     }
 
     /// <summary>
-    /// Guest ÇÁ·Î¼¼½º ½ÇÇà °á°ú
+    /// Guest ï¿½ï¿½ï¿½Î¼ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½
     /// </summary>
     public class GuestProcessResult
     {

@@ -59,7 +59,7 @@ namespace AutoRegressionVM.ViewModels
             set => SetProperty(ref _currentPhase, value);
         }
 
-        // VM ¸ñ·Ï
+        // VM ëª©ë¡
         public ObservableCollection<VMInfo> VMs { get; } = new ObservableCollection<VMInfo>();
 
         private VMInfo _selectedVM;
@@ -69,7 +69,7 @@ namespace AutoRegressionVM.ViewModels
             set => SetProperty(ref _selectedVM, value);
         }
 
-        // ½Ã³ª¸®¿À ¸ñ·Ï
+        // ì‹œë‚˜ë¦¬ì˜¤ ëª©ë¡
         public ObservableCollection<TestScenario> Scenarios { get; } = new ObservableCollection<TestScenario>();
 
         private TestScenario _selectedScenario;
@@ -79,10 +79,10 @@ namespace AutoRegressionVM.ViewModels
             set => SetProperty(ref _selectedScenario, value);
         }
 
-        // Å×½ºÆ® °á°ú
+        // í…ŒìŠ¤íŠ¸ ê²°ê³¼
         public ObservableCollection<TestResult> TestResults { get; } = new ObservableCollection<TestResult>();
 
-        // ·Î±×
+        // ë¡œê·¸
         public ObservableCollection<string> Logs { get; } = new ObservableCollection<string>();
 
         #endregion
@@ -100,6 +100,7 @@ namespace AutoRegressionVM.ViewModels
         public ICommand EditScenarioCommand { get; }
         public ICommand DeleteScenarioCommand { get; }
         public ICommand SaveCommand { get; }
+        public ICommand SettingsCommand { get; }
 
         #endregion
 
@@ -110,7 +111,7 @@ namespace AutoRegressionVM.ViewModels
             _vmwareService = new VixService(_appSettings.VMwareInstallPath);
             _notificationManager = new NotificationManager(_appSettings.Notification);
 
-            // Commands ÃÊ±âÈ­
+            // Commands ì´ˆê¸°í™”
             ConnectCommand = new AsyncRelayCommand(async _ => await ConnectAsync(), _ => !IsConnected);
             DisconnectCommand = new RelayCommand(_ => Disconnect(), _ => IsConnected);
             RefreshVMsCommand = new AsyncRelayCommand(async _ => await RefreshVMsAsync(), _ => IsConnected);
@@ -122,16 +123,17 @@ namespace AutoRegressionVM.ViewModels
             EditScenarioCommand = new RelayCommand(_ => EditScenario(), _ => SelectedScenario != null);
             DeleteScenarioCommand = new RelayCommand(_ => DeleteScenario(), _ => SelectedScenario != null);
             SaveCommand = new RelayCommand(_ => SaveAll());
+            SettingsCommand = new RelayCommand(_ => OpenSettings());
 
-            StatusMessage = "ÁØºñµÊ - VMware¿¡ ¿¬°áÇÏ¼¼¿ä";
+            StatusMessage = "ì¤€ë¹„ë¨ - VMwareì— ì—°ê²°í•˜ì„¸ìš”";
 
-            // ÀúÀåµÈ µ¥ÀÌÅÍ ·Îµå
+            // ì €ì¥ëœ ë°ì´í„° ë¡œë“œ
             LoadSavedData();
         }
 
         private async Task ConnectAsync()
         {
-            StatusMessage = "VMware ¿¬°á Áß...";
+            StatusMessage = "VMware ì—°ê²° ì¤‘...";
 
             try
             {
@@ -140,19 +142,19 @@ namespace AutoRegressionVM.ViewModels
 
                 if (connected)
                 {
-                    StatusMessage = "VMware ¿¬°áµÊ";
-                    AddLog("VMware ¿¬°á ¼º°ø");
+                    StatusMessage = "VMware ì—°ê²°ë¨";
+                    AddLog("VMware ì—°ê²° ì„±ê³µ");
                 }
                 else
                 {
-                    StatusMessage = "VMware ¿¬°á ½ÇÆĞ";
-                    AddLog("VMware ¿¬°á ½ÇÆĞ - VIX SDK°¡ ¼³Ä¡µÇ¾î ÀÖ´ÂÁö È®ÀÎÇÏ¼¼¿ä");
+                    StatusMessage = "VMware ì—°ê²° ì‹¤íŒ¨";
+                    AddLog("VMware ì—°ê²° ì‹¤íŒ¨ - VMware Workstationì´ ì„¤ì¹˜ë˜ì–´ ìˆëŠ”ì§€ í™•ì¸í•˜ì„¸ìš”");
                 }
             }
             catch (Exception ex)
             {
-                StatusMessage = $"¿¬°á ¿À·ù: {ex.Message}";
-                AddLog($"¿À·ù: {ex.Message}");
+                StatusMessage = $"ì—°ê²° ì‹¤íŒ¨: {ex.Message}";
+                AddLog($"ì˜¤ë¥˜: {ex.Message}");
             }
         }
 
@@ -160,14 +162,14 @@ namespace AutoRegressionVM.ViewModels
         {
             _vmwareService.Disconnect();
             IsConnected = false;
-            StatusMessage = "¿¬°á ÇØÁ¦µÊ";
-            AddLog("VMware ¿¬°á ÇØÁ¦");
+            StatusMessage = "ì—°ê²° í•´ì œë¨";
+            AddLog("VMware ì—°ê²° í•´ì œ");
         }
 
         private async Task RefreshVMsAsync()
         {
-            // VM ¸ñ·Ï »õ·Î°íÄ§ (¼öµ¿À¸·Î Ãß°¡µÈ VM ±â¹İ)
-            AddLog("VM ¸ñ·Ï »õ·Î°íÄ§");
+            // VM ëª©ë¡ ìƒˆë¡œê³ ì¹¨
+            AddLog("VM ëª©ë¡ ìƒˆë¡œê³ ì¹¨");
             await Task.CompletedTask;
         }
 
@@ -183,7 +185,7 @@ namespace AutoRegressionVM.ViewModels
                 VMs.Add(dialog.Result);
                 _appSettings.RegisteredVMs.Add(dialog.Result);
                 SaveAll();
-                AddLog($"VM Ãß°¡µÊ: {dialog.Result.Name}");
+                AddLog($"VM ì¶”ê°€ë¨: {dialog.Result.Name}");
             }
         }
 
@@ -192,8 +194,8 @@ namespace AutoRegressionVM.ViewModels
             if (SelectedVM == null) return;
 
             var result = MessageBox.Show(
-                $"'{SelectedVM.Name}'À»(¸¦) »èÁ¦ÇÏ½Ã°Ú½À´Ï±î?",
-                "VM »èÁ¦",
+                $"'{SelectedVM.Name}'ì„(ë¥¼) ì‚­ì œí•˜ì‹œê² ìŠµë‹ˆê¹Œ?",
+                "VM ì‚­ì œ",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
@@ -203,7 +205,7 @@ namespace AutoRegressionVM.ViewModels
                 VMs.Remove(vmToRemove);
                 _appSettings.RegisteredVMs.RemoveAll(v => v.VmxPath == vmToRemove.VmxPath);
                 SaveAll();
-                AddLog($"VM »èÁ¦µÊ: {vmToRemove.Name}");
+                AddLog($"VM ì‚­ì œë¨: {vmToRemove.Name}");
             }
         }
 
@@ -221,35 +223,35 @@ namespace AutoRegressionVM.ViewModels
                 _testRunner.ProgressChanged += OnProgressChanged;
                 _testRunner.LogGenerated += OnLogGenerated;
 
-                AddLog($"½Ã³ª¸®¿À ½ÃÀÛ: {SelectedScenario.Name}");
-                StatusMessage = $"½ÇÇà Áß: {SelectedScenario.Name}";
+                AddLog($"ì‹œë‚˜ë¦¬ì˜¤ ì‹œì‘: {SelectedScenario.Name}");
+                StatusMessage = $"ì‹¤í–‰ ì¤‘: {SelectedScenario.Name}";
 
-                // ½ÃÀÛ ¾Ë¸²
+                // ì‹œì‘ ì•Œë¦¼
                 await _notificationManager.NotifyTestStartedAsync(SelectedScenario);
 
                 var result = await _testRunner.RunScenarioAsync(SelectedScenario);
 
-                // °á°ú Ç¥½Ã
+                // ê²°ê³¼ í‘œì‹œ
                 foreach (var testResult in result.TestResults)
                 {
                     TestResults.Add(testResult);
                 }
 
-                // °á°ú ÀúÀå
+                // ê²°ê³¼ ì €ì¥
                 _settingsService.SaveResult(result);
                 SelectedScenario.LastRunAt = DateTime.Now;
                 _settingsService.SaveScenario(SelectedScenario);
 
-                StatusMessage = $"¿Ï·á: ¼º°ø {result.PassedCount}, ½ÇÆĞ {result.FailedCount}";
+                StatusMessage = $"ì™„ë£Œ: ì„±ê³µ {result.PassedCount}, ì‹¤íŒ¨ {result.FailedCount}";
                 ProgressPercent = 100;
 
-                // ¿Ï·á ¾Ë¸²
+                // ì™„ë£Œ ì•Œë¦¼
                 await _notificationManager.NotifyTestCompletedAsync(result);
             }
             catch (Exception ex)
             {
-                StatusMessage = $"½ÇÇà ¿À·ù: {ex.Message}";
-                AddLog($"¿À·ù: {ex.Message}");
+                StatusMessage = $"ì‹¤í–‰ ì‹¤íŒ¨: {ex.Message}";
+                AddLog($"ì˜¤ë¥˜: {ex.Message}");
                 await _notificationManager.NotifyErrorAsync(ex.Message);
             }
             finally
@@ -266,8 +268,8 @@ namespace AutoRegressionVM.ViewModels
         private void StopExecution()
         {
             _testRunner?.Cancel();
-            StatusMessage = "ÁßÁö ¿äÃ»µÊ...";
-            AddLog("Å×½ºÆ® ÁßÁö ¿äÃ»");
+            StatusMessage = "ì¤‘ì§€ ìš”ì²­ë¨...";
+            AddLog("í…ŒìŠ¤íŠ¸ ì¤‘ì§€ ìš”ì²­");
         }
 
         private void CreateNewScenario()
@@ -282,7 +284,7 @@ namespace AutoRegressionVM.ViewModels
                 Scenarios.Add(dialog.Result);
                 SelectedScenario = dialog.Result;
                 _settingsService.SaveScenario(dialog.Result);
-                AddLog($"»õ ½Ã³ª¸®¿À »ı¼º: {dialog.Result.Name}");
+                AddLog($"ìƒˆ ì‹œë‚˜ë¦¬ì˜¤ ìƒì„±: {dialog.Result.Name}");
             }
         }
 
@@ -304,7 +306,7 @@ namespace AutoRegressionVM.ViewModels
                     SelectedScenario = dialog.Result;
                 }
                 _settingsService.SaveScenario(dialog.Result);
-                AddLog($"½Ã³ª¸®¿À ¼öÁ¤µÊ: {dialog.Result.Name}");
+                AddLog($"ì‹œë‚˜ë¦¬ì˜¤ ìˆ˜ì •ë¨: {dialog.Result.Name}");
             }
         }
 
@@ -313,8 +315,8 @@ namespace AutoRegressionVM.ViewModels
             if (SelectedScenario == null) return;
 
             var result = MessageBox.Show(
-                $"'{SelectedScenario.Name}'À»(¸¦) »èÁ¦ÇÏ½Ã°Ú½À´Ï±î?",
-                "½Ã³ª¸®¿À »èÁ¦",
+                $"'{SelectedScenario.Name}'ì„(ë¥¼) ì‚­ì œí•˜ì‹œê² ìŠµë‹ˆê¹Œ?",
+                "ì‹œë‚˜ë¦¬ì˜¤ ì‚­ì œ",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
@@ -323,14 +325,38 @@ namespace AutoRegressionVM.ViewModels
                 var scenarioToRemove = SelectedScenario;
                 Scenarios.Remove(scenarioToRemove);
                 _settingsService.DeleteScenario(scenarioToRemove);
-                AddLog($"½Ã³ª¸®¿À »èÁ¦µÊ: {scenarioToRemove.Name}");
+                AddLog($"ì‹œë‚˜ë¦¬ì˜¤ ì‚­ì œë¨: {scenarioToRemove.Name}");
             }
         }
 
         private void SaveAll()
         {
             _settingsService.SaveSettings(_appSettings);
-            AddLog("¼³Á¤ ÀúÀåµÊ");
+            AddLog("ì„¤ì • ì €ì¥ë¨");
+        }
+
+        private void OpenSettings()
+        {
+            var dialog = new SettingsDialog(_appSettings, _settingsService, _vmwareService)
+            {
+                Owner = Application.Current.MainWindow
+            };
+
+            if (dialog.ShowDialog() == true && dialog.SettingsChanged)
+            {
+                // ì„¤ì •ì´ ë³€ê²½ë˜ì—ˆìœ¼ë©´ ë‹¤ì‹œ ë¡œë“œ
+                _appSettings = _settingsService.LoadSettings();
+                _notificationManager.UpdateSettings(_appSettings.Notification);
+
+                // VM ëª©ë¡ ê°±ì‹ 
+                VMs.Clear();
+                foreach (var vm in _appSettings.RegisteredVMs)
+                {
+                    VMs.Add(vm);
+                }
+
+                AddLog("ì„¤ì •ì´ ë³€ê²½ë˜ì—ˆìŠµë‹ˆë‹¤");
+            }
         }
 
         private void OnProgressChanged(object sender, TestProgressEventArgs e)
@@ -355,14 +381,14 @@ namespace AutoRegressionVM.ViewModels
         {
             switch (phase)
             {
-                case TestProgressPhase.Initializing: return "ÃÊ±âÈ­";
-                case TestProgressPhase.RevertingSnapshot: return "½º³À¼¦ ·Ñ¹é";
-                case TestProgressPhase.WaitingForBoot: return "ºÎÆÃ ´ë±â";
-                case TestProgressPhase.CopyingFiles: return "ÆÄÀÏ º¹»ç";
-                case TestProgressPhase.ExecutingTest: return "Å×½ºÆ® ½ÇÇà";
-                case TestProgressPhase.CollectingResults: return "°á°ú ¼öÁı";
-                case TestProgressPhase.Completed: return "¿Ï·á";
-                case TestProgressPhase.Failed: return "½ÇÆĞ";
+                case TestProgressPhase.Initializing: return "ì´ˆê¸°í™”";
+                case TestProgressPhase.RevertingSnapshot: return "ìŠ¤ëƒ…ìƒ· ë³µì›";
+                case TestProgressPhase.WaitingForBoot: return "ë¶€íŒ… ëŒ€ê¸°";
+                case TestProgressPhase.CopyingFiles: return "íŒŒì¼ ë³µì‚¬";
+                case TestProgressPhase.ExecutingTest: return "í…ŒìŠ¤íŠ¸ ì‹¤í–‰";
+                case TestProgressPhase.CollectingResults: return "ê²°ê³¼ ìˆ˜ì§‘";
+                case TestProgressPhase.Completed: return "ì™„ë£Œ";
+                case TestProgressPhase.Failed: return "ì‹¤íŒ¨";
                 default: return phase.ToString();
             }
         }
@@ -371,34 +397,34 @@ namespace AutoRegressionVM.ViewModels
         {
             Logs.Add($"[{DateTime.Now:HH:mm:ss}] {message}");
 
-            // ·Î±× ÃÖ´ë °³¼ö Á¦ÇÑ
+            // ë¡œê·¸ ìµœëŒ€ ê°œìˆ˜ ì œí•œ
             while (Logs.Count > 1000)
             {
                 Logs.RemoveAt(0);
             }
         }
 
-                private void LoadSavedData()
-                {
-                    // ÀúÀåµÈ VM ·Îµå
-                    foreach (var vm in _appSettings.RegisteredVMs)
-                    {
-                        VMs.Add(vm);
-                    }
-
-                    // ÀúÀåµÈ ½Ã³ª¸®¿À ·Îµå
-                    var scenarios = _settingsService.LoadAllScenarios();
-                    foreach (var scenario in scenarios)
-                    {
-                        Scenarios.Add(scenario);
-                    }
-
-                    if (Scenarios.Count > 0)
-                    {
-                        SelectedScenario = Scenarios[0];
-                    }
-
-                    AddLog($"·Îµå ¿Ï·á: VM {VMs.Count}°³, ½Ã³ª¸®¿À {Scenarios.Count}°³");
-                }
+        private void LoadSavedData()
+        {
+            // ì €ì¥ëœ VM ë¡œë“œ
+            foreach (var vm in _appSettings.RegisteredVMs)
+            {
+                VMs.Add(vm);
             }
+
+            // ì €ì¥ëœ ì‹œë‚˜ë¦¬ì˜¤ ë¡œë“œ
+            var scenarios = _settingsService.LoadAllScenarios();
+            foreach (var scenario in scenarios)
+            {
+                Scenarios.Add(scenario);
+            }
+
+            if (Scenarios.Count > 0)
+            {
+                SelectedScenario = Scenarios[0];
+            }
+
+            AddLog($"ë¡œë“œ ì™„ë£Œ: VM {VMs.Count}ê°œ, ì‹œë‚˜ë¦¬ì˜¤ {Scenarios.Count}ê°œ");
         }
+    }
+}

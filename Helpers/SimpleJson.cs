@@ -7,15 +7,15 @@ using System.Text;
 namespace AutoRegressionVM.Helpers
 {
     /// <summary>
-    /// °£´ÜÇÑ JSON Á÷·ÄÈ­/¿ªÁ÷·ÄÈ­ ÇïÆÛ
-    /// ¿ÜºÎ ¶óÀÌºê·¯¸® ¾øÀÌ ±âº» ±â´É Á¦°ø
+    /// ê°„ë‹¨í•œ JSON ì§ë ¬í™”/ì—­ì§ë ¬í™” í—¬í¼
+    /// ì™¸ë¶€ ë¼ì´ë¸ŒëŸ¬ë¦¬ ì—†ì´ ê¸°ë³¸ ê¸°ëŠ¥ ì œê³µ
     /// </summary>
     public static class SimpleJson
     {
         public static string Serialize(object obj)
         {
             if (obj == null) return "null";
-            
+
             var sb = new StringBuilder();
             SerializeValue(obj, sb);
             return sb.ToString();
@@ -78,13 +78,13 @@ namespace AutoRegressionVM.Helpers
             foreach (var prop in props)
             {
                 if (!prop.CanRead) continue;
-                
+
                 try
                 {
                     var value = prop.GetValue(obj);
                     if (!first) sb.Append(",");
                     first = false;
-                    
+
                     sb.Append($"\"{prop.Name}\":");
                     SerializeValue(value, sb);
                 }
@@ -126,7 +126,7 @@ namespace AutoRegressionVM.Helpers
         private static string EscapeString(string s)
         {
             if (string.IsNullOrEmpty(s)) return "";
-            
+
             return s.Replace("\\", "\\\\")
                     .Replace("\"", "\\\"")
                     .Replace("\n", "\\n")
@@ -142,19 +142,69 @@ namespace AutoRegressionVM.Helpers
             {
                 var obj = new T();
                 json = json.Trim();
-                
+
                 if (json.StartsWith("{") && json.EndsWith("}"))
                 {
                     json = json.Substring(1, json.Length - 2);
                     ParseObject(json, obj);
                 }
-                
+
                 return obj;
             }
             catch
             {
                 return new T();
             }
+        }
+
+        private static object DeserializeToType(string json, Type targetType)
+        {
+            if (string.IsNullOrWhiteSpace(json) || json == "null") return null;
+
+            json = json.Trim();
+
+            // ê¸°ë³¸ íƒ€ì… ì²˜ë¦¬
+            if (targetType == typeof(string))
+            {
+                return json;
+            }
+            else if (targetType == typeof(int))
+            {
+                return int.TryParse(json, out int i) ? i : 0;
+            }
+            else if (targetType == typeof(long))
+            {
+                return long.TryParse(json, out long l) ? l : 0L;
+            }
+            else if (targetType == typeof(double))
+            {
+                return double.TryParse(json, System.Globalization.NumberStyles.Any,
+                    System.Globalization.CultureInfo.InvariantCulture, out double d) ? d : 0.0;
+            }
+            else if (targetType == typeof(bool))
+            {
+                return json.ToLower() == "true";
+            }
+            else if (targetType == typeof(DateTime))
+            {
+                return DateTime.TryParse(json, out DateTime dt) ? dt : DateTime.MinValue;
+            }
+            else if (targetType.IsEnum)
+            {
+                try { return Enum.Parse(targetType, json, true); }
+                catch { return Enum.GetValues(targetType).GetValue(0); }
+            }
+
+            // ê°ì²´ íƒ€ì…
+            if (json.StartsWith("{") && json.EndsWith("}"))
+            {
+                var obj = Activator.CreateInstance(targetType);
+                var inner = json.Substring(1, json.Length - 2);
+                ParseObject(inner, obj);
+                return obj;
+            }
+
+            return null;
         }
 
         private static void ParseObject(string json, object obj)
@@ -207,7 +257,7 @@ namespace AutoRegressionVM.Helpers
             if (i >= json.Length) return "";
 
             char c = json[i];
-            
+
             if (c == '"')
             {
                 // String value
@@ -230,7 +280,13 @@ namespace AutoRegressionVM.Helpers
                 i++;
                 while (i < json.Length && depth > 0)
                 {
-                    if (json[i] == '{') depth++;
+                    if (json[i] == '"')
+                    {
+                        // Skip string content
+                        i++;
+                        while (i < json.Length && !(json[i] == '"' && json[i-1] != '\\')) i++;
+                    }
+                    else if (json[i] == '{') depth++;
                     else if (json[i] == '}') depth--;
                     i++;
                 }
@@ -244,7 +300,13 @@ namespace AutoRegressionVM.Helpers
                 i++;
                 while (i < json.Length && depth > 0)
                 {
-                    if (json[i] == '[') depth++;
+                    if (json[i] == '"')
+                    {
+                        // Skip string content
+                        i++;
+                        while (i < json.Length && !(json[i] == '"' && json[i-1] != '\\')) i++;
+                    }
+                    else if (json[i] == '[') depth++;
                     else if (json[i] == ']') depth--;
                     i++;
                 }
@@ -311,6 +373,68 @@ namespace AutoRegressionVM.Helpers
                 }
                 catch { }
             }
+            else if (value.StartsWith("{"))
+            {
+                // ì¤‘ì²© ê°ì²´ ì²˜ë¦¬
+                var nestedObj = DeserializeToType(value, underlyingType);
+                if (nestedObj != null)
+                    prop.SetValue(obj, nestedObj);
+            }
+            else if (value.StartsWith("["))
+            {
+                // ë¦¬ìŠ¤íŠ¸ ì²˜ë¦¬
+                var listObj = ParseList(value, propType);
+                if (listObj != null)
+                    prop.SetValue(obj, listObj);
+            }
+        }
+
+        private static object ParseList(string json, Type listType)
+        {
+            if (!json.StartsWith("[") || !json.EndsWith("]"))
+                return null;
+
+            // List<T>ì˜ T íƒ€ì… ê°€ì ¸ì˜¤ê¸°
+            Type itemType = null;
+            if (listType.IsGenericType && listType.GetGenericTypeDefinition() == typeof(List<>))
+            {
+                itemType = listType.GetGenericArguments()[0];
+            }
+            else
+            {
+                return null;
+            }
+
+            // ë¦¬ìŠ¤íŠ¸ ìƒì„±
+            var list = (IList)Activator.CreateInstance(listType);
+
+            // ë°°ì—´ ë‚´ìš© íŒŒì‹±
+            string content = json.Substring(1, json.Length - 2).Trim();
+            if (string.IsNullOrEmpty(content))
+                return list;
+
+            int i = 0;
+            while (i < content.Length)
+            {
+                // Skip whitespace
+                while (i < content.Length && char.IsWhiteSpace(content[i])) i++;
+                if (i >= content.Length) break;
+
+                // Parse item
+                string itemValue = ParseValue(content, ref i);
+
+                if (!string.IsNullOrEmpty(itemValue) && itemValue != "null")
+                {
+                    var item = DeserializeToType(itemValue, itemType);
+                    if (item != null)
+                        list.Add(item);
+                }
+
+                // Skip comma and whitespace
+                while (i < content.Length && (content[i] == ',' || char.IsWhiteSpace(content[i]))) i++;
+            }
+
+            return list;
         }
     }
 }

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 namespace AutoRegressionVM.Models
 {
     /// <summary>
-    /// VM Á¤º¸
+    /// VM ï¿½ï¿½ï¿½ï¿½
     /// </summary>
     public class VMInfo
     {
@@ -13,7 +13,7 @@ namespace AutoRegressionVM.Models
         public List<Snapshot> Snapshots { get; set; } = new List<Snapshot>();
 
         /// <summary>
-        /// Guest OS ·Î±×ÀÎ Á¤º¸
+        /// Guest OS ë¡œê·¸ì¸ ì •ë³´
         /// </summary>
         public string GuestUsername { get; set; }
         public string GuestPassword { get; set; }
