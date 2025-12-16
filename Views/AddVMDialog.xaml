@@ -1,0 +1,40 @@
+<Window x:Class="AutoRegressionVM.Views.AddVMDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="VM 추가" Height="250" Width="450"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+    <Grid Margin="15">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="100"/>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <TextBlock Grid.Row="0" Text="VM 이름:" VerticalAlignment="Center" Margin="0,0,0,10"/>
+        <TextBox Grid.Row="0" Grid.Column="1" Grid.ColumnSpan="2" x:Name="txtVMName" Margin="0,0,0,10"/>
+
+        <TextBlock Grid.Row="1" Text="VMX 경로:" VerticalAlignment="Center" Margin="0,0,0,10"/>
+        <TextBox Grid.Row="1" Grid.Column="1" x:Name="txtVmxPath" Margin="0,0,5,10"/>
+        <Button Grid.Row="1" Grid.Column="2" Content="찾아보기" Click="BrowseVmx_Click" Width="70" Margin="0,0,0,10"/>
+
+        <TextBlock Grid.Row="2" Text="사용자명:" VerticalAlignment="Center" Margin="0,0,0,10"/>
+        <TextBox Grid.Row="2" Grid.Column="1" Grid.ColumnSpan="2" x:Name="txtUsername" Margin="0,0,0,10"/>
+
+        <TextBlock Grid.Row="3" Text="비밀번호:" VerticalAlignment="Center" Margin="0,0,0,10"/>
+        <PasswordBox Grid.Row="3" Grid.Column="1" Grid.ColumnSpan="2" x:Name="txtPassword" Margin="0,0,0,10"/>
+
+        <StackPanel Grid.Row="5" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Content="추가" Click="Add_Click" Width="80" Margin="0,0,10,0" IsDefault="True"/>
+            <Button Content="취소" Click="Cancel_Click" Width="80" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>
