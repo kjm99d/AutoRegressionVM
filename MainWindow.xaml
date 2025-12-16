@@ -172,12 +172,22 @@
                         <RowDefinition Height="*"/>
                     </Grid.RowDefinitions>
 
-                    <!-- 시나리오 선택 -->
-                    <ComboBox Grid.Row="0" 
-                              ItemsSource="{Binding Scenarios}" 
-                              SelectedItem="{Binding SelectedScenario}"
-                              DisplayMemberPath="Name"
-                              Margin="5"/>
+                    <!-- 시나리오 선택 및 관리 -->
+                    <Grid Grid.Row="0" Margin="5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <ComboBox ItemsSource="{Binding Scenarios}"
+                                  SelectedItem="{Binding SelectedScenario}"
+                                  DisplayMemberPath="Name"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="5,0,0,0">
+                            <Button Content="✏" Command="{Binding EditScenarioCommand}"
+                                    ToolTip="시나리오 편집" Width="26" Margin="0,0,2,0"/>
+                            <Button Content="🗑" Command="{Binding DeleteScenarioCommand}"
+                                    ToolTip="시나리오 삭제" Width="26"/>
+                        </StackPanel>
+                    </Grid>
 
                     <!-- 시나리오 상세 -->
                     <Border Grid.Row="1" BorderBrush="LightGray" BorderThickness="1" Margin="5">
