@@ -155,11 +155,21 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <TextBlock Text="VM을 추가하세요" 
-                               HorizontalAlignment="Center" 
+                    <TextBlock Text="VM을 추가하세요"
+                               HorizontalAlignment="Center"
                                VerticalAlignment="Center"
-                               Foreground="Gray"
-                               Visibility="{Binding VMs.Count, Converter={StaticResource BoolToVis}, ConverterParameter=Inverse}"/>
+                               Foreground="Gray">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding VMs.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
                 </Grid>
             </GroupBox>
 
