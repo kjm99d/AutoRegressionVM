@@ -9,7 +9,7 @@ namespace AutoRegressionVM.Services
     /// <summary>
     /// ���� �� �ó����� ����/�ε� ����
     /// </summary>
-    public class SettingsService
+    public class SettingsService : ISettingsService
     {
         private readonly string _settingsPath;
         private readonly string _scenariosDirectory;

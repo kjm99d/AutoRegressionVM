@@ -10,7 +10,7 @@ namespace AutoRegressionVM.Services
     /// <summary>
     /// 테스트 결과 리포트 생성 서비스
     /// </summary>
-    public class ReportService
+    public class ReportService : IReportService
     {
         private readonly string _reportsDirectory;
 

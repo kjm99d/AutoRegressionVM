@@ -15,13 +15,13 @@ namespace AutoRegressionVM.Views
     public partial class SettingsDialog : Window
     {
         private readonly AppSettings _settings;
-        private readonly SettingsService _settingsService;
+        private readonly ISettingsService _settingsService;
         private readonly IVMwareService _vmwareService;
         private readonly ObservableCollection<VMInfo> _vmList;
 
         public bool SettingsChanged { get; private set; }
 
-        public SettingsDialog(AppSettings settings, SettingsService settingsService, IVMwareService vmwareService)
+        public SettingsDialog(AppSettings settings, ISettingsService settingsService, IVMwareService vmwareService)
         {
             InitializeComponent();
 

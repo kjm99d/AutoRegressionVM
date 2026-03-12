@@ -4,15 +4,12 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:AutoRegressionVM"
-        xmlns:vm="clr-namespace:AutoRegressionVM.ViewModels"
         mc:Ignorable="d"
         Title="AutoRegressionVM - 자동 리그레션 테스트" 
         Height="700" Width="1100"
         WindowStartupLocation="CenterScreen">
 
-    <Window.DataContext>
-        <vm:MainViewModel/>
-    </Window.DataContext>
+    <!-- DataContext is set in code-behind via dependency injection -->
 
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>

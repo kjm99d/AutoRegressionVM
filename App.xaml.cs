@@ -7,6 +7,10 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
 using AutoRegressionVM.CLI;
+using AutoRegressionVM.Services;
+using AutoRegressionVM.Services.Notification;
+using AutoRegressionVM.Services.VMware;
+using AutoRegressionVM.ViewModels;
 
 namespace AutoRegressionVM
 {
@@ -54,8 +58,17 @@ namespace AutoRegressionVM
             }
             else
             {
-                // GUI 모드
+                // GUI 모드 — Composition Root: 서비스 조립 후 주입
+                var settingsService = new SettingsService();
+                var appSettings = settingsService.LoadSettings();
+                var reportService = new ReportService();
+                var vmwareService = new VixService(appSettings.VMwareInstallPath);
+                var notificationManager = new NotificationManager(appSettings.Notification);
+
+                var viewModel = new MainViewModel(settingsService, reportService, vmwareService, notificationManager);
+
                 var mainWindow = new MainWindow();
+                mainWindow.DataContext = viewModel;
                 mainWindow.Show();
             }
         }

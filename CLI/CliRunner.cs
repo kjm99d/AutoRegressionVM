@@ -16,7 +16,7 @@ namespace AutoRegressionVM.CLI
     public class CliRunner
     {
         private readonly CliOptions _options;
-        private readonly SettingsService _settingsService;
+        private readonly ISettingsService _settingsService;
         private readonly AppSettings _appSettings;
         private readonly IVMwareService _vmwareService;
         private NotificationManager _notificationManager;

@@ -15,17 +15,17 @@ namespace AutoRegressionVM.Views
 {
     public partial class TestHistoryDialog : Window
     {
-        private readonly SettingsService _settingsService;
-        private readonly ReportService _reportService;
+        private readonly ISettingsService _settingsService;
+        private readonly IReportService _reportService;
         private readonly ObservableCollection<ScenarioResult> _results = new ObservableCollection<ScenarioResult>();
         private List<ScenarioResult> _allResults = new List<ScenarioResult>();
 
-        public TestHistoryDialog(SettingsService settingsService)
+        public TestHistoryDialog(ISettingsService settingsService, IReportService reportService)
         {
             InitializeComponent();
 
             _settingsService = settingsService;
-            _reportService = new ReportService();
+            _reportService = reportService;
             dgHistory.ItemsSource = _results;
 
             // 기본 날짜 설정

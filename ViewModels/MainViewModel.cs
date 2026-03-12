@@ -22,9 +22,9 @@ namespace AutoRegressionVM.ViewModels
     public class MainViewModel : ViewModelBase
     {
         private readonly IVMwareService _vmwareService;
-        private readonly SettingsService _settingsService;
+        private readonly ISettingsService _settingsService;
         private readonly NotificationManager _notificationManager;
-        private readonly ReportService _reportService;
+        private readonly IReportService _reportService;
         private AppSettings _appSettings;
         private ITestRunner _testRunner;
         private ScenarioResult _lastScenarioResult;
@@ -119,13 +119,14 @@ namespace AutoRegressionVM.ViewModels
 
         #endregion
 
-        public MainViewModel()
+        public MainViewModel(ISettingsService settingsService, IReportService reportService,
+                             IVMwareService vmwareService, NotificationManager notificationManager)
         {
-            _settingsService = new SettingsService();
-            _reportService = new ReportService();
+            _settingsService = settingsService;
+            _reportService = reportService;
             _appSettings = _settingsService.LoadSettings();
-            _vmwareService = new VixService(_appSettings.VMwareInstallPath);
-            _notificationManager = new NotificationManager(_appSettings.Notification);
+            _vmwareService = vmwareService;
+            _notificationManager = notificationManager;
 
             // Commands 초기화
             ConnectCommand = new AsyncRelayCommand(async _ => await ConnectAsync(), _ => !IsConnected);
@@ -604,7 +605,7 @@ namespace AutoRegressionVM.ViewModels
 
         private void ViewHistory()
         {
-            var dialog = new TestHistoryDialog(_settingsService)
+            var dialog = new TestHistoryDialog(_settingsService, _reportService)
             {
                 Owner = Application.Current.MainWindow
             };

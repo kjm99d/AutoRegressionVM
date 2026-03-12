@@ -65,6 +65,8 @@
     <Compile Include="Services\Notification\NotificationManager.cs" />
     <Compile Include="Services\Notification\SlackNotificationService.cs" />
     <Compile Include="Services\Notification\TeamsNotificationService.cs" />
+    <Compile Include="Services\ISettingsService.cs" />
+    <Compile Include="Services\IReportService.cs" />
     <Compile Include="Services\SettingsService.cs" />
     <Compile Include="Services\ReportService.cs" />
     <Compile Include="Services\MacroService.cs" />
