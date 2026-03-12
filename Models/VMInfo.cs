@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Newtonsoft.Json;
 using AutoRegressionVM.Helpers;
 
 namespace AutoRegressionVM.Models
@@ -40,7 +41,28 @@ namespace AutoRegressionVM.Models
         /// Guest OS 로그인 정보
         /// </summary>
         public string GuestUsername { get; set; }
-        public string GuestPassword { get; set; }
+
+        /// <summary>
+        /// DPAPI로 암호화된 비밀번호 (JSON 직렬화용)
+        /// </summary>
+        [JsonProperty("GuestPassword")]
+        public string EncryptedGuestPassword
+        {
+            get => CredentialProtector.Encrypt(_guestPassword);
+            set => _guestPassword = CredentialProtector.Decrypt(value);
+        }
+
+        private string _guestPassword;
+
+        /// <summary>
+        /// 복호화된 비밀번호 (런타임 사용용)
+        /// </summary>
+        [JsonIgnore]
+        public string GuestPassword
+        {
+            get => _guestPassword;
+            set => _guestPassword = value;
+        }
     }
 
     public enum VMPowerState

@@ -40,6 +40,7 @@
     <Reference Include="System.Xml" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Core" />
+    <Reference Include="System.Security" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
     <Reference Include="System.Net.Http" />
@@ -59,6 +60,7 @@
     <Compile Include="CLI\CliOptions.cs" />
     <Compile Include="CLI\CliRunner.cs" />
     <Compile Include="CLI\CommandLineParser.cs" />
+    <Compile Include="Helpers\CredentialProtector.cs" />
     <Compile Include="Helpers\NullToCollapsedConverter.cs" />
     <Compile Include="Helpers\SimpleJson.cs" />
     <Compile Include="Services\Notification\EmailNotificationService.cs" />
