@@ -81,5 +81,6 @@ PublishProfiles/
 *.publishproj
 
 # Application settings
+settings.json
 appsettings.local.json
 *.local.json

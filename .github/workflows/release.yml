@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Setup NuGet
+        uses: NuGet/setup-nuget@v2
+
+      - name: Restore NuGet packages
+        run: nuget restore AutoRegressionVM.csproj
+
+      - name: Build Release
+        run: msbuild AutoRegressionVM.csproj -p:Configuration=Release -verbosity:minimal
+
+      - name: Get version from tag
+        id: version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Package release
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.VERSION }}"
+          $stagingDir = "release/AutoRegressionVM-v$version"
+          New-Item -ItemType Directory -Path $stagingDir -Force | Out-Null
+
+          Copy-Item "bin/Release/AutoRegressionVM.exe" $stagingDir
+          Copy-Item "bin/Release/AutoRegressionVM.exe.config" $stagingDir
+          Copy-Item "bin/Release/Newtonsoft.Json.dll" $stagingDir
+          Copy-Item "settings.example.json" $stagingDir
+          Copy-Item "README.md" $stagingDir
+
+          Compress-Archive -Path $stagingDir -DestinationPath "release/AutoRegressionVM-v$version.zip"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/AutoRegressionVM-v${{ steps.version.outputs.VERSION }}.zip
+          body: |
+            ## AutoRegressionVM v${{ steps.version.outputs.VERSION }}
+
+            ### 설치 방법
+            1. `AutoRegressionVM-v${{ steps.version.outputs.VERSION }}.zip` 다운로드
+            2. 압축 해제
+            3. `settings.example.json` → `settings.json`으로 복사 후 환경 설정
+            4. `AutoRegressionVM.exe` 실행
+
+            ### 요구 사항
+            - Windows 10/11
+            - .NET Framework 4.7.2 이상
+            - VMware Workstation Pro
+          generate_release_notes: true
