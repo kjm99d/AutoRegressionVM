@@ -250,17 +250,30 @@ namespace AutoRegressionVM.Services.VMware
         {
             return await Task.Run(() =>
             {
-                try
+                var deadline = DateTime.Now.AddSeconds(timeoutSeconds);
+                var pollInterval = 5; // 5초마다 체크
+
+                while (DateTime.Now < deadline)
                 {
-                    var result = RunVmrun($"checkToolsState \"{vmxPath}\"", timeoutSeconds);
-                    // "running"이면 Tools가 준비된 상태
-                    return result.Output.Contains("running");
+                    try
+                    {
+                        var result = RunVmrun($"checkToolsState \"{vmxPath}\"", 30);
+                        if (result.Output.Contains("running"))
+                        {
+                            return true;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Tools 상태 확인 중: {ex.Message}");
+                    }
+
+                    // 아직 준비 안 됨 — 재시도
+                    System.Threading.Thread.Sleep(pollInterval * 1000);
                 }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"Tools 대기 실패: {ex.Message}");
-                    return false;
-                }
+
+                System.Diagnostics.Debug.WriteLine($"WaitForTools 타임아웃: {timeoutSeconds}초 초과");
+                return false;
             });
         }
 

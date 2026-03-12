@@ -218,7 +218,8 @@ namespace AutoRegressionVM.Services.TestExecution
         {
             var targetFiles = scenario.TestTargetFiles;
             var vmPaths = scenario.TargetVMPaths;
-            var semaphore = new SemaphoreSlim(scenario.MaxParallelVMs > 0 ? scenario.MaxParallelVMs : 1);
+            using (var semaphore = new SemaphoreSlim(scenario.MaxParallelVMs > 0 ? scenario.MaxParallelVMs : 1))
+            {
             var tasks = new List<Task>();
 
             try
@@ -346,6 +347,7 @@ namespace AutoRegressionVM.Services.TestExecution
                     }
                 }
             }
+            } // end using semaphore
         }
 
         /// <summary>
@@ -387,7 +389,8 @@ namespace AutoRegressionVM.Services.TestExecution
 
         private async Task RunStepsParallelAsync(List<TestStep> steps, int maxParallel, ScenarioResult result, bool continueOnFailure)
         {
-            var semaphore = new SemaphoreSlim(maxParallel);
+            using (var semaphore = new SemaphoreSlim(maxParallel))
+            {
             var tasks = new List<Task>();
 
             try
@@ -475,6 +478,7 @@ namespace AutoRegressionVM.Services.TestExecution
                     }
                 }
             }
+            } // end using semaphore
         }
 
         public async Task<TestResult> RunStepAsync(TestStep step, VMInfo vm)
@@ -533,6 +537,9 @@ namespace AutoRegressionVM.Services.TestExecution
                     throw new Exception("Guest OS 로그인 실패");
                 }
 
+                // 3.5. 네트워크 분리 (오프라인 테스트용) — 파일 복사 전에는 연결 유지
+                // ForceNetworkDisconnect는 파일 복사 후, 테스트 실행 직전에 처리
+
                 // 4. 파일 복사 (호스트 → VM)
                 ReportProgress(myStep, _totalStepCount, step.Name, result.VMName, TestProgressPhase.CopyingFiles);
                 Log(TestLogLevel.Info, $"[{result.VMName}] 파일 복사 시작 ({step.FilesToCopyToVM.Count}개)");
@@ -551,6 +558,13 @@ namespace AutoRegressionVM.Services.TestExecution
                     {
                         throw new Exception($"파일 복사 실패: {file.SourcePath}");
                     }
+                }
+
+                // 4.5. 네트워크 분리 (파일 복사 완료 후)
+                if (step.ForceNetworkDisconnect)
+                {
+                    Log(TestLogLevel.Info, $"[{result.VMName}] 네트워크 분리 (오프라인 테스트)");
+                    await DisconnectNetworkAsync(vmxPath, username, password);
                 }
 
                 // 5. 테스트 실행
@@ -585,6 +599,13 @@ namespace AutoRegressionVM.Services.TestExecution
 
                 Log(TestLogLevel.Debug, $"[{result.VMName}] 실행 완료: Exit Code={execResult.ExitCode}, 경과={stopwatch.Elapsed:hh\\:mm\\:ss}");
 
+                // 5.1. 네트워크 복원 (결과 수집 전)
+                if (step.ForceNetworkDisconnect)
+                {
+                    Log(TestLogLevel.Info, $"[{result.VMName}] 네트워크 복원");
+                    await ReconnectNetworkAsync(vmxPath, username, password);
+                }
+
                 // 5.5. 실행 후 대기
                 if (step.WaitAfterExecution != null && step.WaitAfterExecution.HasWait)
                 {
@@ -594,6 +615,10 @@ namespace AutoRegressionVM.Services.TestExecution
 
                     var elapsed = TimeSpan.Zero;
                     var interval = TimeSpan.FromSeconds(10);
+                    var screenshotInterval = step.CaptureScreenshots && step.ScreenshotIntervalSeconds > 0
+                        ? TimeSpan.FromSeconds(step.ScreenshotIntervalSeconds) : TimeSpan.Zero;
+                    var lastScreenshotTime = TimeSpan.Zero;
+
                     while (elapsed < waitTime)
                     {
                         if (_cancellationTokenSource.Token.IsCancellationRequested) break;
@@ -602,6 +627,18 @@ namespace AutoRegressionVM.Services.TestExecution
                         await Task.Delay(sleepTime, _cancellationTokenSource.Token);
                         elapsed += sleepTime;
                         Log(TestLogLevel.Debug, $"[{result.VMName}] 대기 중... {elapsed:hh\\:mm\\:ss} / {waitTime:hh\\:mm\\:ss}");
+
+                        // 주기적 스크린샷 캡처
+                        if (screenshotInterval > TimeSpan.Zero && (elapsed - lastScreenshotTime) >= screenshotInterval)
+                        {
+                            lastScreenshotTime = elapsed;
+                            var ssPath = Path.Combine(GetResultDirectory(step),
+                                $"{result.VMName}_{step.Name}_{elapsed.TotalSeconds:F0}s.png");
+                            if (await _vmwareService.CaptureScreenshotAsync(vmxPath, ssPath))
+                            {
+                                result.ScreenshotPaths.Add(ssPath);
+                            }
+                        }
                     }
                     Log(TestLogLevel.Info, $"[{result.VMName}] 대기 완료");
                 }
@@ -638,11 +675,11 @@ namespace AutoRegressionVM.Services.TestExecution
                     }
                 }
 
-                // 7. 스크린샷 캡처 (옵션)
+                // 7. 스크린샷 캡처 (옵션) — 최종 스크린샷
                 if (step.CaptureScreenshots)
                 {
                     var screenshotPath = Path.Combine(GetResultDirectory(step), $"{result.VMName}_{step.Name}_final.png");
-                    Log(TestLogLevel.Debug, $"[{result.VMName}] 스크린샷 캡처: {screenshotPath}");
+                    Log(TestLogLevel.Debug, $"[{result.VMName}] 최종 스크린샷 캡처: {screenshotPath}");
                     if (await _vmwareService.CaptureScreenshotAsync(vmxPath, screenshotPath))
                     {
                         result.ScreenshotPaths.Add(screenshotPath);
@@ -762,7 +799,67 @@ namespace AutoRegressionVM.Services.TestExecution
                     return false;
             }
 
+            // JSON 경로 기반 값 체크
+            if (!string.IsNullOrEmpty(criteria.ResultJsonPath) && !string.IsNullOrEmpty(criteria.ExpectedJsonValue))
+            {
+                if (!EvaluateJsonPath(result, criteria.ResultJsonPath, criteria.ExpectedJsonValue))
+                    return false;
+            }
+
             return true;
+        }
+
+        /// <summary>
+        /// 수집된 결과 파일에서 간단한 JSON 키 경로로 값을 비교한다.
+        /// 경로 형식: "key1.key2.key3" (단순 dot 표기)
+        /// </summary>
+        private bool EvaluateJsonPath(TestResult result, string jsonPath, string expectedValue)
+        {
+            try
+            {
+                // 수집된 JSON 결과 파일에서 확인
+                foreach (var filePath in result.CollectedFilePaths)
+                {
+                    if (!filePath.EndsWith(".json", StringComparison.OrdinalIgnoreCase) || !File.Exists(filePath))
+                        continue;
+
+                    var json = File.ReadAllText(filePath);
+                    var obj = Newtonsoft.Json.Linq.JObject.Parse(json);
+                    var token = obj.SelectToken(jsonPath);
+
+                    if (token != null)
+                    {
+                        var actualValue = token.ToString();
+                        if (string.Equals(actualValue, expectedValue, StringComparison.OrdinalIgnoreCase))
+                            return true;
+                    }
+                }
+
+                // 출력에서도 JSON 파싱 시도
+                if (!string.IsNullOrEmpty(result.Output))
+                {
+                    try
+                    {
+                        var obj = Newtonsoft.Json.Linq.JObject.Parse(result.Output);
+                        var token = obj.SelectToken(jsonPath);
+                        if (token != null)
+                        {
+                            return string.Equals(token.ToString(), expectedValue, StringComparison.OrdinalIgnoreCase);
+                        }
+                    }
+                    catch
+                    {
+                        // 출력이 JSON이 아니면 무시
+                    }
+                }
+
+                return false;
+            }
+            catch (Exception ex)
+            {
+                Log(TestLogLevel.Warning, $"JSON 경로 평가 실패: {jsonPath} - {ex.Message}");
+                return false;
+            }
         }
 
         private VMInfo GetVMInfo(string vmxPath)
@@ -804,6 +901,41 @@ namespace AutoRegressionVM.Services.TestExecution
                 }
             }
             return false;
+        }
+
+        /// <summary>
+        /// VM 네트워크 어댑터 분리 (vmrun을 통한 스크립트 실행)
+        /// </summary>
+        private async Task DisconnectNetworkAsync(string vmxPath, string username, string password)
+        {
+            try
+            {
+                // Windows Guest: netsh로 모든 네트워크 어댑터 비활성화
+                await _vmwareService.RunScriptInGuestAsync(vmxPath, "cmd.exe",
+                    "/c \"wmic path win32_networkadapter where \\\"NetConnectionStatus=2\\\" call disable\"", 30);
+            }
+            catch (Exception ex)
+            {
+                Log(TestLogLevel.Warning, $"네트워크 분리 실패 (계속 진행): {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// VM 네트워크 어댑터 복원
+        /// </summary>
+        private async Task ReconnectNetworkAsync(string vmxPath, string username, string password)
+        {
+            try
+            {
+                await _vmwareService.RunScriptInGuestAsync(vmxPath, "cmd.exe",
+                    "/c \"wmic path win32_networkadapter where \\\"NetConnectionStatus!=2\\\" call enable\"", 30);
+                // 네트워크 복원 후 안정화 대기
+                await Task.Delay(3000);
+            }
+            catch (Exception ex)
+            {
+                Log(TestLogLevel.Warning, $"네트워크 복원 실패: {ex.Message}");
+            }
         }
 
         private string GetResultDirectory(TestStep step)
