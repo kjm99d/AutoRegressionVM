@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace AutoRegressionVM.Models
 {
     /// <summary>
-    /// �׽�Ʈ �ó����� (�׽�Ʈ Step���� ����)
+    /// 테스트 시나리오 (테스트 Step들의 묶음)
     /// </summary>
     public class TestScenario
     {
@@ -15,19 +15,30 @@ namespace AutoRegressionVM.Models
         public DateTime? LastRunAt { get; set; }
 
         /// <summary>
-        /// �ó������� ���Ե� �׽�Ʈ Step ���
+        /// 시나리오에 포함된 테스트 Step 목록
         /// </summary>
         public List<TestStep> Steps { get; set; } = new List<TestStep>();
 
         /// <summary>
-        /// ���� ���� �� �ִ� ���� VM ��
+        /// 동시 실행 할 수 있는 최대 VM 수
         /// </summary>
         public int MaxParallelVMs { get; set; } = 1;
 
         /// <summary>
-        /// ���� �� ��� ���� ����
+        /// 실패 시 계속 진행 여부
         /// </summary>
         public bool ContinueOnFailure { get; set; } = true;
+
+        /// <summary>
+        /// 테스트 대상 파일 목록 (VM별로 분배)
+        /// 여러 파일을 미리 지정하면 각 VM에 하나씩 분배됨
+        /// </summary>
+        public List<TestTargetFile> TestTargetFiles { get; set; } = new List<TestTargetFile>();
+
+        /// <summary>
+        /// 대상 VM 경로 목록 (병렬 실행 시 사용할 VM들)
+        /// </summary>
+        public List<string> TargetVMPaths { get; set; } = new List<string>();
 
         /// <summary>
         /// 테스트 실행 전 이벤트
@@ -38,6 +49,27 @@ namespace AutoRegressionVM.Models
         /// 테스트 실행 후 이벤트
         /// </summary>
         public ScenarioEvent PostTestEvent { get; set; }
+    }
+
+    /// <summary>
+    /// 테스트 대상 파일 (VM에 분배할 파일)
+    /// </summary>
+    public class TestTargetFile
+    {
+        /// <summary>
+        /// 호스트 PC의 파일 경로
+        /// </summary>
+        public string HostFilePath { get; set; }
+
+        /// <summary>
+        /// VM 내 업로드 대상 경로
+        /// </summary>
+        public string VMDestinationPath { get; set; }
+
+        /// <summary>
+        /// 파일 설명
+        /// </summary>
+        public string Description { get; set; }
     }
 
     /// <summary>
@@ -101,24 +133,9 @@ namespace AutoRegressionVM.Models
     /// </summary>
     public enum EventType
     {
-        /// <summary>
-        /// 명령줄 실행
-        /// </summary>
         Command,
-
-        /// <summary>
-        /// PowerShell 스크립트
-        /// </summary>
         PowerShell,
-
-        /// <summary>
-        /// 배치 파일
-        /// </summary>
         BatchFile,
-
-        /// <summary>
-        /// 실행 파일
-        /// </summary>
         Executable
     }
 
@@ -127,19 +144,8 @@ namespace AutoRegressionVM.Models
     /// </summary>
     public enum PostEventCondition
     {
-        /// <summary>
-        /// 항상 실행
-        /// </summary>
         Always,
-
-        /// <summary>
-        /// 테스트 성공 시에만
-        /// </summary>
         OnSuccess,
-
-        /// <summary>
-        /// 테스트 실패 시에만
-        /// </summary>
         OnFailure
     }
 }

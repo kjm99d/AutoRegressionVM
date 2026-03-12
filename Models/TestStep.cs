@@ -1,59 +1,65 @@
+using System;
 using System.Collections.Generic;
 
 namespace AutoRegressionVM.Models
 {
     /// <summary>
-    /// ���� �׽�Ʈ Step
+    /// 개별 테스트 Step
     /// </summary>
     public class TestStep
     {
-        public string Id { get; set; } = System.Guid.NewGuid().ToString();
+        public string Id { get; set; } = Guid.NewGuid().ToString();
         public string Name { get; set; }
         public string Description { get; set; }
         public int Order { get; set; }
 
         /// <summary>
-        /// ��� VM�� VMX ���
+        /// 대상 VM의 VMX 경로
         /// </summary>
         public string TargetVmxPath { get; set; }
 
         /// <summary>
-        /// �ѹ��� ������ �̸�
+        /// 복원할 스냅샷 이름
         /// </summary>
         public string SnapshotName { get; set; }
 
         /// <summary>
-        /// ȣ��Ʈ �� VM ������ ���� ���
+        /// 호스트 → VM 파일 복사 목록
         /// </summary>
         public List<FileCopyInfo> FilesToCopyToVM { get; set; } = new List<FileCopyInfo>();
 
         /// <summary>
-        /// ���� ����
+        /// 실행 설정
         /// </summary>
         public ExecutionInfo Execution { get; set; } = new ExecutionInfo();
 
         /// <summary>
-        /// VM �� ȣ��Ʈ ������ ��� ���� ���
+        /// 실행 후 대기 시간 설정
+        /// </summary>
+        public WaitTime WaitAfterExecution { get; set; } = new WaitTime();
+
+        /// <summary>
+        /// VM → 호스트 결과 파일 수집 목록
         /// </summary>
         public List<FileCopyInfo> ResultFilesToCollect { get; set; } = new List<FileCopyInfo>();
 
         /// <summary>
-        /// ���� ����
+        /// 성공 기준
         /// </summary>
         public SuccessCriteria SuccessCriteria { get; set; } = new SuccessCriteria();
 
         /// <summary>
-        /// ���� �� ��Ʈ��ũ ���� ���� (�Ǽ��ڵ� �׽�Ʈ��)
+        /// 실행 중 네트워크 강제 분리 (오프라인 테스트용)
         /// </summary>
         public bool ForceNetworkDisconnect { get; set; } = true;
 
         /// <summary>
-        /// ���� �� ��ũ���� ĸó
+        /// 실행 중 스크린샷 캡처
         /// </summary>
         public bool CaptureScreenshots { get; set; } = false;
 
         /// <summary>
-        /// ��ũ���� ĸó ���� (��)
+        /// 스크린샷 캡처 간격 (초)
         /// </summary>
         public int ScreenshotIntervalSeconds { get; set; } = 10;
 
@@ -66,6 +72,30 @@ namespace AutoRegressionVM.Models
         /// 조건부 실행 설정
         /// </summary>
         public StepCondition Condition { get; set; }
+    }
+
+    /// <summary>
+    /// 실행 후 대기 시간
+    /// </summary>
+    public class WaitTime
+    {
+        public int Hours { get; set; }
+        public int Minutes { get; set; }
+        public int Seconds { get; set; }
+
+        public TimeSpan ToTimeSpan() => new TimeSpan(Hours, Minutes, Seconds);
+
+        public bool HasWait => Hours > 0 || Minutes > 0 || Seconds > 0;
+
+        public override string ToString()
+        {
+            if (!HasWait) return "없음";
+            var parts = new List<string>();
+            if (Hours > 0) parts.Add($"{Hours}시간");
+            if (Minutes > 0) parts.Add($"{Minutes}분");
+            if (Seconds > 0) parts.Add($"{Seconds}초");
+            return string.Join(" ", parts);
+        }
     }
 
     /// <summary>
@@ -112,7 +142,7 @@ namespace AutoRegressionVM.Models
     }
 
     /// <summary>
-    /// ���� ���� ����
+    /// 파일 복사 정보
     /// </summary>
     public class FileCopyInfo
     {
@@ -121,7 +151,7 @@ namespace AutoRegressionVM.Models
     }
 
     /// <summary>
-    /// ���� ����
+    /// 실행 정보
     /// </summary>
     public class ExecutionInfo
     {
@@ -135,34 +165,34 @@ namespace AutoRegressionVM.Models
 
     public enum ExecutionType
     {
-        Program,    // exe ���� ����
-        Script,     // bat, ps1 ��ũ��Ʈ
-        Command     // cmd /c "���ɾ�"
+        Program,    // exe 직접 실행
+        Script,     // bat, ps1 스크립트
+        Command     // cmd /c "명령어"
     }
 
     /// <summary>
-    /// ���� ����
+    /// 성공 기준
     /// </summary>
     public class SuccessCriteria
     {
         /// <summary>
-        /// ���� Exit Code (null�̸� üũ ����)
+        /// 기대 Exit Code (null이면 체크 안함)
         /// </summary>
         public int? ExpectedExitCode { get; set; } = 0;
 
         /// <summary>
-        /// ��� ���Ͽ��� Ȯ���� JSON ��ο� ��
+        /// 결과 파일에서 확인할 JSON 경로와 값
         /// </summary>
         public string ResultJsonPath { get; set; }
         public string ExpectedJsonValue { get; set; }
 
         /// <summary>
-        /// ����� ���ԵǾ�� �� ���ڿ�
+        /// 출력에 포함되어야 할 문자열
         /// </summary>
         public string ContainsText { get; set; }
 
         /// <summary>
-        /// ����� ���ԵǸ� �ȵǴ� ���ڿ�
+        /// 출력에 포함되면 안되는 문자열
         /// </summary>
         public string NotContainsText { get; set; }
     }
