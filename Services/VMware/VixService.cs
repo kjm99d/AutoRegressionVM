@@ -502,7 +502,7 @@ namespace AutoRegressionVM.Services.VMware
                 {
                     var vmrunResult = RunVmrun(
                         $"-gu \"{cred.Username}\" -gp \"{cred.Password}\" " +
-                        $"runProgramInGuest \"{vmxPath}\" -noWait -activeWindow \"{programPath}\" {arguments}",
+                        $"runProgramInGuest \"{vmxPath}\" -activeWindow \"{programPath}\" {arguments}",
                         timeoutSeconds);
 
                     result.Success = vmrunResult.ExitCode == 0;
