@@ -648,9 +648,10 @@ namespace AutoRegressionVM.Views
             {
                 _resultFiles.Add(new FileCopyInfo
                 {
-                    SourcePath = "C:\\Test\\결과.txt",
-                    DestinationPath = Path.Combine(dialog.SelectedPath, "{VMName}_{StepName}_{Timestamp}")
+                    SourcePath = "",
+                    DestinationPath = Path.Combine(dialog.SelectedPath, "{VM_NAME}_{STEP_NAME}_{DATETIME}")
                 });
+                lvResultFiles.SelectedIndex = _resultFiles.Count - 1;
             }
         }
 
