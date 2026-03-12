@@ -64,6 +64,12 @@
                     <TextBlock Text="중지"/>
                 </StackPanel>
             </Button>
+            <Button Command="{Binding ReRunCommand}" Padding="10,5" Margin="2" ToolTip="마지막 시나리오 재실행">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="🔁" Margin="0,0,5,0"/>
+                    <TextBlock Text="재실행"/>
+                </StackPanel>
+            </Button>
             <Separator Margin="10,0"/>
             <Button Command="{Binding SettingsCommand}" Padding="10,5" Margin="2">
                 <StackPanel Orientation="Horizontal">
@@ -106,6 +112,14 @@
                     <ListBox ItemsSource="{Binding VMs}"
                              SelectedItem="{Binding SelectedVM}"
                              Margin="5">
+                        <ListBox.ContextMenu>
+                            <ContextMenu>
+                                <MenuItem Header="VM 추가" Command="{Binding AddVMCommand}"/>
+                                <MenuItem Header="선택 VM 삭제" Command="{Binding RemoveVMCommand}"/>
+                                <Separator/>
+                                <MenuItem Header="VM 새로고침" Command="{Binding RefreshVMsCommand}"/>
+                            </ContextMenu>
+                        </ListBox.ContextMenu>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
                                 <StackPanel Margin="5">
@@ -188,7 +202,20 @@
                         </Grid.ColumnDefinitions>
                         <ComboBox ItemsSource="{Binding Scenarios}"
                                   SelectedItem="{Binding SelectedScenario}"
-                                  DisplayMemberPath="Name"/>
+                                  DisplayMemberPath="Name"
+                                  MouseDoubleClick="Scenario_DoubleClick">
+                            <ComboBox.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="편집" Command="{Binding EditScenarioCommand}"/>
+                                    <MenuItem Header="복제" Command="{Binding CloneScenarioCommand}"/>
+                                    <Separator/>
+                                    <MenuItem Header="내보내기" Command="{Binding ExportScenarioCommand}"/>
+                                    <MenuItem Header="가져오기" Command="{Binding ImportScenarioCommand}"/>
+                                    <Separator/>
+                                    <MenuItem Header="삭제" Command="{Binding DeleteScenarioCommand}"/>
+                                </ContextMenu>
+                            </ComboBox.ContextMenu>
+                        </ComboBox>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="5,0,0,0">
                             <Button Content="✏" Command="{Binding EditScenarioCommand}"
                                     ToolTip="시나리오 편집" Width="26" Margin="0,0,2,0"/>
@@ -293,14 +320,29 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <ProgressBar Grid.Column="0" Height="20" Value="{Binding ProgressPercent}" Maximum="100"/>
             <TextBlock Grid.Column="0" Text="{Binding CurrentPhase}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
             <TextBlock Grid.Column="1" Text="{Binding ProgressPercent, StringFormat={}{0:F0}%}" Margin="10,0,0,0" VerticalAlignment="Center"/>
+            <TextBlock Grid.Column="2" Text="{Binding ElapsedTime}" Margin="10,0,0,0" VerticalAlignment="Center"
+                       Foreground="#666" FontFamily="Consolas"
+                       Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}"/>
         </Grid>
 
         <!-- 하단: 로그 -->
-        <GroupBox Grid.Row="3" Header="로그" Margin="10,0,10,10">
+        <GroupBox Grid.Row="3" Margin="10,0,10,10">
+            <GroupBox.Header>
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="로그" VerticalAlignment="Center"/>
+                    <Button Content="💾" Command="{Binding ExportLogCommand}" ToolTip="로그 내보내기"
+                            Width="22" Height="18" FontSize="10" Margin="10,0,2,0" Padding="0"
+                            VerticalAlignment="Center"/>
+                    <Button Content="🗑" Command="{Binding ClearLogCommand}" ToolTip="로그 초기화"
+                            Width="22" Height="18" FontSize="10" Margin="2,0,0,0" Padding="0"
+                            VerticalAlignment="Center"/>
+                </StackPanel>
+            </GroupBox.Header>
             <ListBox x:Name="lstLogs" ItemsSource="{Binding Logs}"
                      FontFamily="Consolas"
                      FontSize="11"

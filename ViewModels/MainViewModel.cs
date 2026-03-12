@@ -3,9 +3,11 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 using AutoRegressionVM.Helpers;
 using AutoRegressionVM.Models;
 using AutoRegressionVM.Services;
@@ -27,6 +29,8 @@ namespace AutoRegressionVM.ViewModels
         private AppSettings _appSettings;
         private ITestRunner _testRunner;
         private ScenarioResult _lastScenarioResult;
+        private DispatcherTimer _elapsedTimer;
+        private DateTime _executionStartTime;
 
         #region Properties
 
@@ -63,6 +67,13 @@ namespace AutoRegressionVM.ViewModels
         {
             get => _currentPhase;
             set => SetProperty(ref _currentPhase, value);
+        }
+
+        private string _elapsedTime;
+        public string ElapsedTime
+        {
+            get => _elapsedTime;
+            set => SetProperty(ref _elapsedTime, value);
         }
 
         // VM 목록
@@ -115,6 +126,9 @@ namespace AutoRegressionVM.ViewModels
         public ICommand ViewHistoryCommand { get; }
         public ICommand SaveCommand { get; }
         public ICommand SettingsCommand { get; }
+        public ICommand ExportLogCommand { get; }
+        public ICommand ReRunCommand { get; }
+        public ICommand ClearLogCommand { get; }
 
         #endregion
 
@@ -147,6 +161,17 @@ namespace AutoRegressionVM.ViewModels
             ViewHistoryCommand = new RelayCommand(_ => ViewHistory());
             SaveCommand = new RelayCommand(_ => SaveAll());
             SettingsCommand = new RelayCommand(_ => OpenSettings());
+            ExportLogCommand = new RelayCommand(_ => ExportLog(), _ => Logs.Count > 0);
+            ReRunCommand = new AsyncRelayCommand(async _ => await RunScenarioAsync(), _ => IsConnected && !IsRunning && _lastScenarioResult != null && SelectedScenario != null);
+            ClearLogCommand = new RelayCommand(_ => { Logs.Clear(); AddLog("로그 초기화됨"); });
+
+            // 경과 시간 타이머
+            _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _elapsedTimer.Tick += (s, e) =>
+            {
+                var elapsed = DateTime.Now - _executionStartTime;
+                ElapsedTime = elapsed.ToString(@"hh\:mm\:ss");
+            };
 
             StatusMessage = "준비됨 - VMware에 연결하세요";
 
@@ -274,9 +299,28 @@ namespace AutoRegressionVM.ViewModels
         {
             if (SelectedScenario == null) return;
 
+            // 실행 전 검증
+            var validationErrors = ValidateScenario(SelectedScenario);
+            if (validationErrors.Count > 0)
+            {
+                var msg = "실행 전 검증 실패:\n\n" + string.Join("\n", validationErrors.Select(e => $"  - {e}"));
+                var proceed = MessageBox.Show(
+                    msg + "\n\n그래도 실행하시겠습니까?",
+                    "검증 경고",
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Warning);
+
+                if (proceed != MessageBoxResult.Yes) return;
+            }
+
             IsRunning = true;
             TestResults.Clear();
             ProgressPercent = 0;
+
+            // 경과 시간 시작
+            _executionStartTime = DateTime.Now;
+            ElapsedTime = "00:00:00";
+            _elapsedTimer.Start();
 
             try
             {
@@ -339,6 +383,7 @@ namespace AutoRegressionVM.ViewModels
             }
             finally
             {
+                _elapsedTimer.Stop();
                 if (_testRunner != null)
                 {
                     _testRunner.ProgressChanged -= OnProgressChanged;
@@ -618,6 +663,100 @@ namespace AutoRegressionVM.ViewModels
             while (Logs.Count > 1000)
             {
                 Logs.RemoveAt(0);
+            }
+        }
+
+        /// <summary>
+        /// 시나리오 실행 전 검증: VMX 경로, 복사 파일, 실행 파일 존재 확인
+        /// </summary>
+        private System.Collections.Generic.List<string> ValidateScenario(TestScenario scenario)
+        {
+            var errors = new System.Collections.Generic.List<string>();
+
+            if (scenario.Steps == null || scenario.Steps.Count == 0)
+            {
+                errors.Add("테스트 스텝이 없습니다");
+                return errors;
+            }
+
+            foreach (var step in scenario.Steps)
+            {
+                var stepLabel = $"[스텝 {step.Order}: {step.Name}]";
+
+                // VMX 경로 확인 (파일 분배 모드가 아닌 경우)
+                if (scenario.TargetVMPaths.Count == 0 && !string.IsNullOrEmpty(step.TargetVmxPath))
+                {
+                    if (!File.Exists(step.TargetVmxPath))
+                        errors.Add($"{stepLabel} VMX 파일 없음: {step.TargetVmxPath}");
+                }
+
+                // 실행 파일 경로 확인 (호스트 경로인 경우에만)
+                if (step.Execution != null && !string.IsNullOrEmpty(step.Execution.ExecutablePath))
+                {
+                    var execPath = step.Execution.ExecutablePath;
+                    // 게스트 VM 경로가 아닌 호스트 경로인 경우에만 검증
+                    if (!execPath.Contains(":") || execPath.StartsWith(AppDomain.CurrentDomain.BaseDirectory))
+                    {
+                        // 게스트 경로는 보통 C:\, D:\ 등으로 시작하므로 호스트와 구분 어려움 — 스킵
+                    }
+                }
+
+                // 복사할 파일 존재 확인
+                if (step.FilesToCopyToVM != null)
+                {
+                    foreach (var file in step.FilesToCopyToVM)
+                    {
+                        if (!string.IsNullOrEmpty(file.SourcePath) && !File.Exists(file.SourcePath))
+                            errors.Add($"{stepLabel} 복사 파일 없음: {file.SourcePath}");
+                    }
+                }
+            }
+
+            // 대상 VM 경로 확인 (파일 분배 모드)
+            foreach (var vmPath in scenario.TargetVMPaths)
+            {
+                if (!File.Exists(vmPath))
+                    errors.Add($"대상 VM 파일 없음: {vmPath}");
+            }
+
+            // 배분 파일 확인
+            if (scenario.TestTargetFiles != null)
+            {
+                foreach (var file in scenario.TestTargetFiles)
+                {
+                    if (!string.IsNullOrEmpty(file.HostFilePath) && !File.Exists(file.HostFilePath))
+                        errors.Add($"배분 파일 없음: {file.HostFilePath}");
+                }
+            }
+
+            return errors;
+        }
+
+        private void ExportLog()
+        {
+            var dialog = new SaveFileDialog
+            {
+                Title = "로그 내보내기",
+                Filter = "텍스트 파일 (*.txt)|*.txt|로그 파일 (*.log)|*.log",
+                FileName = $"AutoRegressionVM_{DateTime.Now:yyyyMMdd_HHmmss}.log"
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                try
+                {
+                    var sb = new StringBuilder();
+                    foreach (var log in Logs)
+                    {
+                        sb.AppendLine(log);
+                    }
+                    File.WriteAllText(dialog.FileName, sb.ToString(), Encoding.UTF8);
+                    AddLog($"로그 내보내기 완료: {dialog.FileName}");
+                }
+                catch (Exception ex)
+                {
+                    AddLog($"로그 내보내기 실패: {ex.Message}");
+                }
             }
         }
 

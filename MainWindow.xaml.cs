@@ -41,5 +41,14 @@ namespace AutoRegressionVM
                 };
             }
         }
+
+        private void Scenario_DoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            var vm = DataContext as ViewModels.MainViewModel;
+            if (vm?.EditScenarioCommand?.CanExecute(null) == true)
+            {
+                vm.EditScenarioCommand.Execute(null);
+            }
+        }
     }
 }
