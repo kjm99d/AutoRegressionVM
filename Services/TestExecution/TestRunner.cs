@@ -32,6 +32,9 @@ namespace AutoRegressionVM.Services.TestExecution
                        ?? new Dictionary<string, VMInfo>();
         }
 
+        private int _totalStepCount;
+        private int _completedStepCount;
+
         public async Task<ScenarioResult> RunScenarioAsync(TestScenario scenario)
         {
             if (_isRunning)
@@ -39,6 +42,7 @@ namespace AutoRegressionVM.Services.TestExecution
 
             _isRunning = true;
             _cancellationTokenSource = new CancellationTokenSource();
+            _completedStepCount = 0;
 
             var result = new ScenarioResult
             {
@@ -78,22 +82,24 @@ namespace AutoRegressionVM.Services.TestExecution
                 }
 
                 var orderedSteps = scenario.Steps.OrderBy(s => s.Order).ToList();
-                int totalSteps = orderedSteps.Count;
 
                 // 병렬 파일 분배 모드: TestTargetFiles와 TargetVMPaths가 모두 있을 때
                 if (scenario.TestTargetFiles.Count > 0 && scenario.TargetVMPaths.Count > 0)
                 {
+                    _totalStepCount = orderedSteps.Count * scenario.TestTargetFiles.Count;
                     Log(TestLogLevel.Info, $"파일 분배 병렬 모드: {scenario.TestTargetFiles.Count}개 파일, {scenario.TargetVMPaths.Count}개 VM");
                     await RunScenarioParallelAsync(scenario, orderedSteps, result);
                 }
                 else if (scenario.MaxParallelVMs > 1)
                 {
+                    _totalStepCount = orderedSteps.Count;
                     // 기존 병렬 실행
                     Log(TestLogLevel.Info, $"병렬 실행 모드 (최대 {scenario.MaxParallelVMs}개 VM)");
                     await RunStepsParallelAsync(orderedSteps, scenario.MaxParallelVMs, result, scenario.ContinueOnFailure);
                 }
                 else
                 {
+                    _totalStepCount = orderedSteps.Count;
                     // 순차 실행
                     Log(TestLogLevel.Info, "순차 실행 모드");
                     int currentStep = 0;
@@ -107,7 +113,7 @@ namespace AutoRegressionVM.Services.TestExecution
 
                         currentStep++;
                         var vmName = GetVMName(step.TargetVmxPath);
-                        ReportProgress(currentStep, totalSteps, step.Name, vmName, TestProgressPhase.Initializing);
+                        ReportProgress(currentStep, _totalStepCount, step.Name, vmName, TestProgressPhase.Initializing);
 
                         // 조건 평가
                         if (!EvaluateStepCondition(step, result.TestResults))
@@ -373,7 +379,8 @@ namespace AutoRegressionVM.Services.TestExecution
                 var password = vm?.GuestPassword ?? "";
 
                 // 1. 스냅샷 복원
-                ReportProgress(0, 1, step.Name, result.VMName, TestProgressPhase.RevertingSnapshot);
+                var myStep = System.Threading.Interlocked.Increment(ref _completedStepCount);
+                ReportProgress(myStep, _totalStepCount, step.Name, result.VMName, TestProgressPhase.RevertingSnapshot);
                 Log(TestLogLevel.Info, $"[{result.VMName}] 스냅샷 복원: {step.SnapshotName}");
 
                 if (!await _vmwareService.RevertToSnapshotAsync(vmxPath, step.SnapshotName))
@@ -382,7 +389,7 @@ namespace AutoRegressionVM.Services.TestExecution
                 }
 
                 // 2. VM 부팅 대기
-                ReportProgress(0, 1, step.Name, result.VMName, TestProgressPhase.WaitingForBoot);
+                ReportProgress(myStep, _totalStepCount, step.Name, result.VMName, TestProgressPhase.WaitingForBoot);
                 Log(TestLogLevel.Info, $"[{result.VMName}] VM 부팅 대기 중...");
 
                 if (!await _vmwareService.PowerOnAsync(vmxPath))
@@ -403,7 +410,7 @@ namespace AutoRegressionVM.Services.TestExecution
                 }
 
                 // 4. 파일 복사 (호스트 → VM)
-                ReportProgress(0, 1, step.Name, result.VMName, TestProgressPhase.CopyingFiles);
+                ReportProgress(myStep, _totalStepCount, step.Name, result.VMName, TestProgressPhase.CopyingFiles);
                 Log(TestLogLevel.Info, $"[{result.VMName}] 파일 복사 시작 ({step.FilesToCopyToVM.Count}개)");
                 foreach (var file in step.FilesToCopyToVM)
                 {
@@ -423,7 +430,7 @@ namespace AutoRegressionVM.Services.TestExecution
                 }
 
                 // 5. 테스트 실행
-                ReportProgress(0, 1, step.Name, result.VMName, TestProgressPhase.ExecutingTest);
+                ReportProgress(myStep, _totalStepCount, step.Name, result.VMName, TestProgressPhase.ExecutingTest);
                 Log(TestLogLevel.Info, $"[{result.VMName}] 테스트 실행: {step.Execution.ExecutablePath}");
 
                 GuestProcessResult execResult;
@@ -459,7 +466,7 @@ namespace AutoRegressionVM.Services.TestExecution
                 {
                     var waitTime = step.WaitAfterExecution.ToTimeSpan();
                     Log(TestLogLevel.Info, $"[{result.VMName}] 실행 후 대기: {step.WaitAfterExecution}");
-                    ReportProgress(0, 1, step.Name, result.VMName, TestProgressPhase.WaitingAfterExecution);
+                    ReportProgress(myStep, _totalStepCount, step.Name, result.VMName, TestProgressPhase.WaitingAfterExecution);
 
                     var elapsed = TimeSpan.Zero;
                     var interval = TimeSpan.FromSeconds(10);
@@ -476,7 +483,7 @@ namespace AutoRegressionVM.Services.TestExecution
                 }
 
                 // 6. 결과 파일 수집
-                ReportProgress(0, 1, step.Name, result.VMName, TestProgressPhase.CollectingResults);
+                ReportProgress(myStep, _totalStepCount, step.Name, result.VMName, TestProgressPhase.CollectingResults);
                 Log(TestLogLevel.Info, $"[{result.VMName}] 결과 파일 수집 ({step.ResultFilesToCollect.Count}개)");
                 foreach (var file in step.ResultFilesToCollect)
                 {
@@ -517,7 +524,7 @@ namespace AutoRegressionVM.Services.TestExecution
                     await _vmwareService.RevertToSnapshotAsync(vmxPath, step.SnapshotName);
                 }
 
-                ReportProgress(0, 1, step.Name, result.VMName,
+                ReportProgress(myStep, _totalStepCount, step.Name, result.VMName,
                     result.Status == TestResultStatus.Passed ? TestProgressPhase.Completed : TestProgressPhase.Failed);
 
                 Log(result.Status == TestResultStatus.Passed ? TestLogLevel.Info : TestLogLevel.Error,
@@ -636,7 +643,7 @@ namespace AutoRegressionVM.Services.TestExecution
 
         private string GetResultDirectory(TestStep step)
         {
-            var dir = Path.Combine("Results", DateTime.Now.ToString("yyyyMMdd"), step.Name);
+            var dir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Results", DateTime.Now.ToString("yyyyMMdd"), step.Name);
             if (!Directory.Exists(dir))
                 Directory.CreateDirectory(dir);
             return dir;
@@ -650,14 +657,42 @@ namespace AutoRegressionVM.Services.TestExecution
 
         private void ReportProgress(int current, int total, string stepName, string vmName, TestProgressPhase phase)
         {
+            double percent = total > 0 ? (double)current / total * 100.0 : 0;
+            // phase 내 세부 진행률 반영
+            if (total > 0)
+            {
+                double stepBase = (double)(current - 1) / total * 100.0;
+                double stepRange = 100.0 / total;
+                double phaseWeight = GetPhaseWeight(phase);
+                percent = stepBase + stepRange * phaseWeight;
+            }
+
             ProgressChanged?.Invoke(this, new TestProgressEventArgs
             {
                 CurrentStep = current,
                 TotalSteps = total,
+                ProgressPercent = Math.Min(percent, 100),
                 CurrentStepName = stepName,
                 VMName = vmName,
                 Phase = phase
             });
+        }
+
+        private double GetPhaseWeight(TestProgressPhase phase)
+        {
+            switch (phase)
+            {
+                case TestProgressPhase.Initializing: return 0.0;
+                case TestProgressPhase.RevertingSnapshot: return 0.1;
+                case TestProgressPhase.WaitingForBoot: return 0.2;
+                case TestProgressPhase.CopyingFiles: return 0.35;
+                case TestProgressPhase.ExecutingTest: return 0.5;
+                case TestProgressPhase.WaitingAfterExecution: return 0.7;
+                case TestProgressPhase.CollectingResults: return 0.85;
+                case TestProgressPhase.Completed: return 1.0;
+                case TestProgressPhase.Failed: return 1.0;
+                default: return 0.5;
+            }
         }
 
         private void Log(TestLogLevel level, string message, string vmName = null)
@@ -831,7 +866,7 @@ namespace AutoRegressionVM.Services.TestExecution
                 .Replace("{Date}", DateTime.Now.ToString("yyyy-MM-dd"))
                 .Replace("{Time}", DateTime.Now.ToString("HH-mm-ss"))
                 .Replace("{DateTime}", DateTime.Now.ToString("yyyyMMdd_HHmmss"))
-                .Replace("{ResultDir}", Path.Combine("Results", DateTime.Now.ToString("yyyyMMdd")));
+                .Replace("{ResultDir}", Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Results", DateTime.Now.ToString("yyyyMMdd")));
 
             if (result != null)
             {

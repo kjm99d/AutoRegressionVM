@@ -47,7 +47,7 @@ namespace AutoRegressionVM.Services.TestExecution
         public string CurrentStepName { get; set; }
         public string VMName { get; set; }
         public TestProgressPhase Phase { get; set; }
-        public double ProgressPercent => TotalSteps > 0 ? (double)CurrentStep / TotalSteps * 100 : 0;
+        public double ProgressPercent { get; set; }
     }
 
     public enum TestProgressPhase

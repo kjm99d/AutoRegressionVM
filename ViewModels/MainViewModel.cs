@@ -189,9 +189,47 @@ namespace AutoRegressionVM.ViewModels
 
         private async Task RefreshVMsAsync()
         {
-            // VM 목록 새로고침
-            AddLog("VM 목록 새로고침");
-            await Task.CompletedTask;
+            try
+            {
+                StatusMessage = "VM 목록 새로고침 중...";
+                AddLog("VM 목록 새로고침 시작");
+
+                var registeredVMs = await _vmwareService.GetRegisteredVMsAsync();
+                var runningVMs = await _vmwareService.GetRunningVMsAsync();
+
+                // 새로 발견된 VM 추가
+                int addedCount = 0;
+                foreach (var vm in registeredVMs)
+                {
+                    if (!VMs.Any(v => v.VmxPath == vm.VmxPath))
+                    {
+                        VMs.Add(vm);
+                        _appSettings.RegisteredVMs.Add(vm);
+                        addedCount++;
+                    }
+                }
+
+                // 실행 상태 갱신
+                foreach (var vm in VMs)
+                {
+                    vm.PowerState = runningVMs.Contains(vm.VmxPath)
+                        ? VMPowerState.PoweredOn
+                        : VMPowerState.PoweredOff;
+                }
+
+                if (addedCount > 0)
+                {
+                    SaveAll();
+                }
+
+                StatusMessage = $"VM {VMs.Count}개 (실행 중 {runningVMs.Count}개)";
+                AddLog($"VM 목록 새로고침 완료: 총 {VMs.Count}개, 새로 발견 {addedCount}개");
+            }
+            catch (Exception ex)
+            {
+                StatusMessage = $"VM 목록 새로고침 실패: {ex.Message}";
+                AddLog($"VM 목록 새로고침 실패: {ex.Message}");
+            }
         }
 
         private void AddVM()

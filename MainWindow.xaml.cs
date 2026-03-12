@@ -23,6 +23,23 @@ namespace AutoRegressionVM
         public MainWindow()
         {
             InitializeComponent();
+            Loaded += MainWindow_Loaded;
+        }
+
+        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            // 로그 자동 스크롤
+            var vm = DataContext as ViewModels.MainViewModel;
+            if (vm != null)
+            {
+                vm.Logs.CollectionChanged += (s, args) =>
+                {
+                    if (lstLogs.Items.Count > 0)
+                    {
+                        lstLogs.ScrollIntoView(lstLogs.Items[lstLogs.Items.Count - 1]);
+                    }
+                };
+            }
         }
     }
 }

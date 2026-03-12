@@ -24,6 +24,7 @@
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="150"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- 상단 툴바 -->
@@ -184,6 +185,12 @@
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="5,0,0,0">
                             <Button Content="✏" Command="{Binding EditScenarioCommand}"
                                     ToolTip="시나리오 편집" Width="26" Margin="0,0,2,0"/>
+                            <Button Content="📋" Command="{Binding CloneScenarioCommand}"
+                                    ToolTip="시나리오 복제" Width="26" Margin="0,0,2,0"/>
+                            <Button Content="📥" Command="{Binding ImportScenarioCommand}"
+                                    ToolTip="시나리오 가져오기" Width="26" Margin="0,0,2,0"/>
+                            <Button Content="📤" Command="{Binding ExportScenarioCommand}"
+                                    ToolTip="시나리오 내보내기" Width="26" Margin="0,0,2,0"/>
                             <Button Content="🗑" Command="{Binding DeleteScenarioCommand}"
                                     ToolTip="시나리오 삭제" Width="26"/>
                         </StackPanel>
@@ -193,8 +200,13 @@
                     <Border Grid.Row="1" BorderBrush="LightGray" BorderThickness="1" Margin="5">
                         <ScrollViewer>
                             <StackPanel Margin="10" DataContext="{Binding SelectedScenario}">
-                                <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="Bold" Margin="0,0,0,10"/>
-                                <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Foreground="Gray" Margin="0,0,0,15"/>
+                                <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="Bold" Margin="0,0,0,5"/>
+                                <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Foreground="Gray" Margin="0,0,0,5"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                    <TextBlock Text="{Binding MaxParallelVMs, StringFormat='병렬 VM: {0}'}" FontSize="11" Foreground="#666" Margin="0,0,15,0"/>
+                                    <TextBlock Text="{Binding TargetVMPaths.Count, StringFormat='대상 VM: {0}개'}" FontSize="11" Foreground="#666" Margin="0,0,15,0"/>
+                                    <TextBlock Text="{Binding TestTargetFiles.Count, StringFormat='배분 파일: {0}개'}" FontSize="11" Foreground="#666"/>
+                                </StackPanel>
 
                                 <TextBlock Text="테스트 Steps:" FontWeight="SemiBold" Margin="0,0,0,5"/>
                                 <ItemsControl ItemsSource="{Binding Steps}">
@@ -282,8 +294,8 @@
 
         <!-- 하단: 로그 -->
         <GroupBox Grid.Row="3" Header="로그" Margin="10,0,10,10">
-            <ListBox ItemsSource="{Binding Logs}" 
-                     FontFamily="Consolas" 
+            <ListBox x:Name="lstLogs" ItemsSource="{Binding Logs}"
+                     FontFamily="Consolas"
                      FontSize="11"
                      ScrollViewer.HorizontalScrollBarVisibility="Auto">
                 <ListBox.ItemContainerStyle>
@@ -295,7 +307,7 @@
         </GroupBox>
 
         <!-- 상태 표시줄 -->
-        <StatusBar Grid.Row="3" VerticalAlignment="Bottom" Margin="10,0,10,0">
+        <StatusBar Grid.Row="4">
             <StatusBarItem>
                 <StackPanel Orientation="Horizontal">
                     <Ellipse Width="10" Height="10" Margin="0,0,5,0">

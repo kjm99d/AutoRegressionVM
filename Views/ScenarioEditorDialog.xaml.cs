@@ -13,10 +13,25 @@ using Microsoft.Win32;
 
 namespace AutoRegressionVM.Views
 {
-    public class VMSelectionItem
+    public class VMSelectionItem : System.ComponentModel.INotifyPropertyChanged
     {
         public VMInfo VM { get; set; }
-        public bool IsSelected { get; set; }
+
+        private bool _isSelected;
+        public bool IsSelected
+        {
+            get => _isSelected;
+            set
+            {
+                if (_isSelected != value)
+                {
+                    _isSelected = value;
+                    PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(IsSelected)));
+                }
+            }
+        }
+
+        public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
     }
 
     public partial class ScenarioEditorDialog : Window
@@ -402,10 +417,39 @@ namespace AutoRegressionVM.Views
             if (string.IsNullOrWhiteSpace(txtName.Text))
             {
                 MessageBox.Show("시나리오 이름을 입력하세요.", "오류", MessageBoxButton.OK, MessageBoxImage.Warning);
+                txtName.Focus();
+                return;
+            }
+
+            if (_steps.Count == 0)
+            {
+                MessageBox.Show("최소 하나의 테스트 스텝을 추가하세요.", "오류", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
 
             SaveCurrentStep();
+
+            // 스텝 유효성 검사
+            var errors = new List<string>();
+            for (int i = 0; i < _steps.Count; i++)
+            {
+                var step = _steps[i];
+                if (string.IsNullOrWhiteSpace(step.Name))
+                    errors.Add($"스텝 #{i + 1}: 이름이 비어 있습니다.");
+                if (string.IsNullOrWhiteSpace(step.TargetVmxPath))
+                    errors.Add($"스텝 #{i + 1} '{step.Name}': 대상 VM이 선택되지 않았습니다.");
+                if (step.Execution == null || string.IsNullOrWhiteSpace(step.Execution.ExecutablePath))
+                    errors.Add($"스텝 #{i + 1} '{step.Name}': 실행 경로가 비어 있습니다.");
+            }
+
+            if (errors.Count > 0)
+            {
+                var msg = "다음 항목을 확인하세요:\n\n" + string.Join("\n", errors);
+                var result = MessageBox.Show(msg + "\n\n그래도 저장하시겠습니까?", "유효성 경고",
+                    MessageBoxButton.YesNo, MessageBoxImage.Warning);
+                if (result != MessageBoxResult.Yes)
+                    return;
+            }
 
             Result = new TestScenario
             {
@@ -561,9 +605,11 @@ namespace AutoRegressionVM.Views
         {
             _resultFiles.Add(new FileCopyInfo
             {
-                SourcePath = "C:\\Test\\result.txt",
+                SourcePath = "",
                 DestinationPath = "{ResultDir}\\{VMName}_{StepName}_{Timestamp}"
             });
+            // 새로 추가된 항목을 선택하고 편집 가능하도록
+            lvResultFiles.SelectedIndex = _resultFiles.Count - 1;
         }
 
         private void RemoveResultFile_Click(object sender, RoutedEventArgs e)
