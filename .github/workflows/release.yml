@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build-and-release:
     runs-on: windows-latest
@@ -62,4 +65,4 @@ jobs:
             - Windows 10/11
             - .NET Framework 4.7.2 이상
             - VMware Workstation Pro
-          generate_release_notes: true
+          make_latest: true
