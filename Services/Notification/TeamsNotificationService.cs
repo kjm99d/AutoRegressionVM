@@ -2,12 +2,13 @@ using System;
 using System.Net.Http;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft.Json;
 using AutoRegressionVM.Models;
 
 namespace AutoRegressionVM.Services.Notification
 {
     /// <summary>
-    /// Microsoft Teams ¾Ë¸² ¼­ºñ½º
+    /// Microsoft Teams ï¿½Ë¸ï¿½ ï¿½ï¿½ï¿½ï¿½
     /// </summary>
     public class TeamsNotificationService : INotificationService
     {
@@ -23,13 +24,13 @@ namespace AutoRegressionVM.Services.Notification
         public async Task SendTestStartedAsync(TestScenario scenario)
         {
             var card = CreateAdaptiveCard(
-                "?? Å×½ºÆ® ½ÃÀÛ",
+                "?? ï¿½×½ï¿½Æ® ï¿½ï¿½ï¿½ï¿½",
                 "1E90FF",
                 new[]
                 {
-                    ("½Ã³ª¸®¿À", scenario.Name),
-                    ("Steps", $"{scenario.Steps.Count}°³"),
-                    ("½ÃÀÛ ½Ã°£", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"))
+                    ("ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½", scenario.Name),
+                    ("Steps", $"{scenario.Steps.Count}ï¿½ï¿½"),
+                    ("ï¿½ï¿½ï¿½ï¿½ ï¿½Ã°ï¿½", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"))
                 });
 
             await SendCardAsync(card);
@@ -38,19 +39,19 @@ namespace AutoRegressionVM.Services.Notification
         public async Task SendTestCompletedAsync(ScenarioResult result)
         {
             var color = result.IsSuccess ? "28A745" : "DC3545";
-            var title = result.IsSuccess ? "? Å×½ºÆ® ¿Ï·á - ¼º°ø" : "? Å×½ºÆ® ¿Ï·á - ½ÇÆÐ";
+            var title = result.IsSuccess ? "? ï¿½×½ï¿½Æ® ï¿½Ï·ï¿½ - ï¿½ï¿½ï¿½ï¿½" : "? ï¿½×½ï¿½Æ® ï¿½Ï·ï¿½ - ï¿½ï¿½ï¿½ï¿½";
 
             var card = CreateAdaptiveCard(
                 title,
                 color,
                 new[]
                 {
-                    ("½Ã³ª¸®¿À", result.ScenarioName),
-                    ("¼Ò¿ä½Ã°£", result.Duration.ToString(@"hh\:mm\:ss")),
-                    ("¼º°ø", $"{result.PassedCount}°³"),
-                    ("½ÇÆÐ", $"{result.FailedCount}°³"),
-                    ("½ºÅµ", $"{result.SkippedCount}°³"),
-                    ("¿À·ù", $"{result.ErrorCount}°³")
+                    ("ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½", result.ScenarioName),
+                    ("ï¿½Ò¿ï¿½Ã°ï¿½", result.Duration.ToString(@"hh\:mm\:ss")),
+                    ("ï¿½ï¿½ï¿½ï¿½", $"{result.PassedCount}ï¿½ï¿½"),
+                    ("ï¿½ï¿½ï¿½ï¿½", $"{result.FailedCount}ï¿½ï¿½"),
+                    ("ï¿½ï¿½Åµ", $"{result.SkippedCount}ï¿½ï¿½"),
+                    ("ï¿½ï¿½ï¿½ï¿½", $"{result.ErrorCount}ï¿½ï¿½")
                 });
 
             await SendCardAsync(card);
@@ -59,13 +60,13 @@ namespace AutoRegressionVM.Services.Notification
         public async Task SendTestFailedAsync(TestResult result)
         {
             var card = CreateAdaptiveCard(
-                "? Å×½ºÆ® ½ÇÆÐ",
+                "? ï¿½×½ï¿½Æ® ï¿½ï¿½ï¿½ï¿½",
                 "DC3545",
                 new[]
                 {
-                    ("Å×½ºÆ®", result.TestStepName),
+                    ("ï¿½×½ï¿½Æ®", result.TestStepName),
                     ("VM", result.VMName),
-                    ("¿À·ù", result.ErrorMessage ?? "¾Ë ¼ö ¾øÀ½")
+                    ("ï¿½ï¿½ï¿½ï¿½", result.ErrorMessage ?? "ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½")
                 });
 
             await SendCardAsync(card);
@@ -74,9 +75,9 @@ namespace AutoRegressionVM.Services.Notification
         public async Task SendErrorAsync(string errorMessage)
         {
             var card = CreateAdaptiveCard(
-                "?? ¿À·ù ¹ß»ý",
+                "?? ï¿½ï¿½ï¿½ï¿½ ï¿½ß»ï¿½",
                 "FFC107",
-                new[] { ("¸Þ½ÃÁö", errorMessage) });
+                new[] { ("ï¿½Þ½ï¿½ï¿½ï¿½", errorMessage) });
 
             await SendCardAsync(card);
         }
@@ -86,9 +87,9 @@ namespace AutoRegressionVM.Services.Notification
             try
             {
                 var card = CreateAdaptiveCard(
-                    "?? ¾Ë¸² Å×½ºÆ®",
+                    "?? ï¿½Ë¸ï¿½ ï¿½×½ï¿½Æ®",
                     "17A2B8",
-                    new[] { ("»óÅÂ", "AutoRegressionVM ¾Ë¸² Å×½ºÆ® ¸Þ½ÃÁöÀÔ´Ï´Ù.") });
+                    new[] { ("ï¿½ï¿½ï¿½ï¿½", "AutoRegressionVM ï¿½Ë¸ï¿½ ï¿½×½ï¿½Æ® ï¿½Þ½ï¿½ï¿½ï¿½ï¿½Ô´Ï´ï¿½.") });
 
                 await SendCardAsync(card);
                 return true;
@@ -156,26 +157,13 @@ namespace AutoRegressionVM.Services.Notification
                             }
                             catch (Exception ex)
                             {
-                                System.Diagnostics.Debug.WriteLine($"Teams ¾Ë¸² Àü¼Û ½ÇÆÐ: {ex.Message}");
+                                System.Diagnostics.Debug.WriteLine($"Teams ï¿½Ë¸ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½: {ex.Message}");
                             }
                         }
 
                         private string SerializeCard(object card)
                         {
-                            // Teams À¥ÈÅÀº °£´ÜÇÑ ÅØ½ºÆ® ¸Þ½ÃÁö·Î ´ëÃ¼
-                            var type = card.GetType();
-                            var textProp = type.GetProperty("text");
-                            if (textProp != null)
-                            {
-                                var text = textProp.GetValue(card)?.ToString() ?? "";
-                                return $"{{\"text\":\"{EscapeJson(text)}\"}}";
-                            }
-                            return "{\"text\":\"¾Ë¸²\"}";
-                        }
-
-                        private string EscapeJson(string s)
-                        {
-                            return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "");
+                            return JsonConvert.SerializeObject(card);
                         }
                     }
                 }

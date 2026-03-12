@@ -6,7 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
-using AutoRegressionVM.Helpers;
+using Newtonsoft.Json;
 using AutoRegressionVM.Models;
 using AutoRegressionVM.Services;
 using Microsoft.Win32;
@@ -55,7 +55,7 @@ namespace AutoRegressionVM.Views
                     try
                     {
                         var json = File.ReadAllText(file);
-                        var result = SimpleJson.Deserialize<ScenarioResult>(json);
+                        var result = JsonConvert.DeserializeObject<ScenarioResult>(json);
                         if (result != null)
                         {
                             _allResults.Add(result);
