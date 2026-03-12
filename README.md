@@ -337,538 +337,502 @@ AutoRegressionVM/
 
 ---
 
-### B. 활용 사례
+### B. GUI 화면 구성
+
+프로그램 실행 시 메인 윈도우는 다음과 같이 구성됩니다:
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│ 툴바: [연결] [연결해제] | [VM추가] [새시나리오] | [실행] [중지]     │
+│       [재실행] | [설정] | [스케줄] [이력] [리포트]                  │
+├──────────┬──────────────────────────────┬───────────────────────────┤
+│ VM 목록  │     테스트 시나리오           │     테스트 결과           │
+│          │                              │                           │
+│ ● Win10  │ [시나리오 선택 ▼]            │ ✅ 설치 테스트            │
+│ ○ Win11  │  [✏복제📋📥📤🗑]           │    Win10-QA  00:45        │
+│          │                              │ ❌ 기능 테스트            │
+│ ── 실행중 ──│ 병렬VM: 2  대상VM: 3개     │    Win11-QA  01:23        │
+│ ● Win10  │                              │    오류: Exit code 1      │
+│  복사중.. │ 테스트 Steps:                │ ⏭ 정리 (Skipped)         │
+│  ████░░  │ #0 설치 테스트               │                           │
+│ ● Win11  │    스냅샷: Clean             │                           │
+│  실행중.. │    실행: setup.exe           │                           │
+│  █████░  │ #1 기능 테스트               │                           │
+│          │    스냅샷: Installed          │                           │
+├──────────┴──────────────────────────────┴───────────────────────────┤
+│ [████████████████████████░░░░] 파일 복사 중...  68%    00:02:15     │
+├────────────────────────────────────────────────────────────────────-┤
+│ 로그                                                    [💾] [🗑]  │
+│ [09:15:30] [INFO] Win10-QA: 스냅샷 "Clean" 복원 시작               │
+│ [09:15:45] [INFO] Win10-QA: VMware Tools 대기 중...                │
+│ [09:16:02] [INFO] Win10-QA: setup.exe 복사 중...                   │
+├────────────────────────────────────────────────────────────────────-┤
+│ ● 연결됨 | VM: 3대 | 시나리오: 5개 | F5:실행  Esc:중지  Ctrl+E:편집│
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+| 영역 | 설명 |
+|------|------|
+| **툴바** | VMware 연결, VM/시나리오 관리, 실행/중지, 설정/스케줄/이력/리포트 |
+| **VM 목록** (좌측) | 등록된 VM 표시. 녹색 ●=켜짐, 회색 ○=꺼짐. 실행 중에는 VM별 진행 상태 표시 |
+| **시나리오** (중앙) | 드롭다운으로 시나리오 선택. 스텝 목록과 설정 요약 표시. 우클릭으로 편집/복제/내보내기/가져오기/삭제 |
+| **테스트 결과** (우측) | 스텝별 결과 (✅성공, ❌실패, ⏭스킵, ⚠오류). 마우스 올리면 상세 오류/출력 확인 |
+| **진행률 바** | 현재 단계, 진행률 %, 경과 시간 표시 |
+| **로그** | 실시간 로그 출력 (💾 내보내기, 🗑 초기화) |
+| **상태 표시줄** | 연결 상태, VM 수, 시나리오 수, 단축키 안내 |
+
+---
+
+### C. GUI 단계별 사용법
+
+#### 워크플로우 1: VMware 연결 및 VM 등록
+
+```
+1. 툴바에서 [🔌 연결] 클릭
+   → 상태 표시줄이 "● 연결됨"으로 변경되면 성공
+   → 실패 시: [⚙ 설정] → "일반" 탭 → VMware 설치 경로 확인
+
+2. 툴바에서 [➕ VM 추가] 클릭
+   → "VM 추가" 다이얼로그가 열림:
+   ┌─────────────────────────────┐
+   │ VM 이름:   [Win10-QA      ]│
+   │ VMX 경로:  [D:\VMware\...] │ [찾아보기]
+   │ 사용자명:  [Administrator  ]│
+   │ 비밀번호:  [••••••••      ]│
+   │              [추가] [취소]  │
+   └─────────────────────────────┘
+   - "찾아보기"로 .vmx 파일 선택
+   - 사용자명/비밀번호: VM 안의 Guest OS 로그인 계정
+   - 비밀번호는 DPAPI로 자동 암호화 저장
+
+3. 또는 [⚙ 설정] → "VM 관리" 탭 → [VMware에서 가져오기]
+   → VMware에 등록된 모든 VM을 자동으로 불러옴
+   → DataGrid에서 사용자명/비밀번호를 셀 더블클릭하여 편집
+```
+
+---
+
+#### 워크플로우 2: 시나리오 만들기 (시나리오 편집기)
+
+```
+1. 툴바에서 [📝 새 시나리오] 또는 Ctrl+N
+   → 시나리오 편집기 다이얼로그가 열림
+```
+
+시나리오 편집기는 **상단 탭**과 **하단 스텝 편집 영역**으로 구분됩니다:
+
+**상단: 시나리오 설정 (4개 탭)**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ [기본 정보] [테스트 전 이벤트] [테스트 후 이벤트] [대상VM/파일분배] │
+├─────────────────────────────────────────────────────────────┤
+│ 이름: [설치 테스트 v2.5        ]  병렬 VM: [3 ]             │
+│ 설명: [v2.5.0 빌드 설치 검증   ]                            │
+│ ☑ 실패 시 계속 진행                                         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+| 탭 | 설정 항목 |
+|-----|----------|
+| **기본 정보** | 이름, 설명, 병렬 VM 수, "실패 시 계속 진행" 체크 |
+| **테스트 전 이벤트** | 테스트 시작 전 실행할 스크립트 (유형: 명령줄/PowerShell/배치/실행파일, 타임아웃, 실패 시 중단 여부) |
+| **테스트 후 이벤트** | 테스트 완료 후 실행할 스크립트 (실행 조건: 항상/성공 시/실패 시) |
+| **대상 VM / 파일 분배** | 병렬 실행할 VM 체크 선택 + 테스트 파일 목록 (VM별 자동 분배) |
+
+**하단: 스텝 편집**
+
+```
+┌──────────────┬──────────────────────────────────────────────┐
+│ 테스트 스텝  │ 스텝 상세 편집                                │
+│              │                                              │
+│ #0 설치      │ ┌ 스텝 정보 ──────────────────────────┐      │
+│ #1 기능 테스트│ │ 스텝 이름: [설치 파일 실행         ] │      │
+│ #2 정리      │ │ 대상 VM:   [Win10-QA           ▼]  │      │
+│              │ │ 스냅샷:    [Clean              ▼] [↻]│     │
+│ [추가][복제] │ └──────────────────────────────────────┘      │
+│ [삭제][▲][▼]│                                              │
+│              │ ┌ 파일 복사 (호스트 → VM) ────────────┐      │
+│              │ │ 소스 경로(호스트)  │ 대상 경로(VM)   │      │
+│              │ │ D:\Builds\setup.exe│ C:\Temp\setup.exe│     │
+│              │ │        [파일 추가] [폴더 추가] [삭제]│      │
+│              │ └──────────────────────────────────────┘      │
+│              │                                              │
+│              │ ┌ 실행 설정 ──────────────────────────┐      │
+│              │ │ 실행 유형: [Program          ▼]     │      │
+│              │ │ 실행 경로: [C:\Temp\setup.exe ] [..]│      │
+│              │ │ 인수:      [/S /NORESTART        ]  │      │
+│              │ │ 타임아웃:  [300                  ]초 │      │
+│              │ └──────────────────────────────────────┘      │
+│              │                                              │
+│              │ ┌ 실행 후 대기 ────────────────────────┐     │
+│              │ │ [0]시간 [0]분 [30]초                  │     │
+│              │ │ 빠른설정: [없음][30초][1분][5분][10분]│     │
+│              │ └──────────────────────────────────────┘      │
+│              │                                              │
+│              │ ┌ 결과 파일 수집 (VM → 호스트) ────────┐     │
+│              │ │ VM 내 경로        │ 호스트 저장 경로   │     │
+│              │ │ C:\Temp\result.json│ {RESULT_DIR}\...  │     │
+│              │ │          [추가] [삭제] [대상 폴더 선택]│     │
+│              │ └──────────────────────────────────────┘      │
+│              │                                              │
+│              │ ┌ 실행 조건 ──────────────────────────┐      │
+│              │ │ [항상 실행                       ▼]  │      │
+│              │ └──────────────────────────────────────┘      │
+│              │                                              │
+│              │ ┌ 옵션 ───────────────────────────────┐      │
+│              │ │ ☑ 네트워크 강제 분리                  │      │
+│              │ │ ☑ 완료 후 스냅샷 복원                 │      │
+│              │ │ ☐ 스크린샷 캡처  간격: [10]초         │      │
+│              │ └──────────────────────────────────────┘      │
+│              │                                              │
+│              │                         [저장] [취소]        │
+└──────────────┴──────────────────────────────────────────────┘
+```
+
+**스텝 편집 핵심 포인트:**
+
+| 영역 | 조작 방법 |
+|------|----------|
+| **스텝 목록** | [추가]로 새 스텝, [복제]로 복사, [▲][▼]로 순서 변경, 드래그&드롭 지원, Delete 키로 삭제 |
+| **대상 VM/스냅샷** | 드롭다운에서 선택. [↻]로 스냅샷 목록 새로고침 |
+| **파일 복사** | [파일 추가]로 개별 파일, [폴더 추가]로 폴더 선택. 경로는 셀 직접 편집 가능 |
+| **실행 설정** | Program(exe), Script(bat/ps1), Command(cmd /c) 중 선택. [..]로 파일 찾기 |
+| **실행 후 대기** | 빠른설정 버튼으로 원클릭 지정 (없음~1시간), 또는 시/분/초 직접 입력 |
+| **결과 수집** | VM에서 호스트로 가져올 파일 경로 지정. `{RESULT_DIR}`, `{VM_NAME}` 등 매크로 사용 가능 |
+| **실행 조건** | "항상 실행", "이전 스텝 성공 시", "이전 스텝 실패 시", "특정 스텝 결과에 따라", "모든 이전 성공 시", "하나라도 실패 시" |
+| **옵션** | 네트워크 차단, 스냅샷 복원, 스크린샷 캡처 + 간격 설정 |
+
+---
+
+#### 워크플로우 3: 시나리오 실행 및 모니터링
+
+```
+1. 중앙 패널 드롭다운에서 실행할 시나리오 선택
+2. [▶ 실행] 클릭 또는 F5
+   → 좌측 VM 목록 하단에 VM별 실행 상태가 나타남:
+     ● Win10-QA  "파일 복사 중"  ████░░░░
+     ● Win11-QA  "테스트 실행 중"  ██████░░
+   → 진행률 바에 현재 단계와 % 표시
+   → 로그 영역에 실시간 로그 출력
+
+3. 실행 중지: [⏹ 중지] 클릭 또는 Esc
+
+4. 실행 완료 후:
+   → 우측 "테스트 결과" 패널에 스텝별 결과 표시
+     ✅ = 성공, ❌ = 실패, ⏭ = 스킵, ⚠ = 오류, 🔄 = 실행중
+   → 실패한 항목에 마우스를 올리면 오류 메시지, 출력, Exit Code 확인
+   → [🔁 재실행]으로 같은 시나리오 다시 실행
+
+5. 로그 관리:
+   → [💾] 버튼: 로그를 파일로 내보내기
+   → [🗑] 버튼: 로그 초기화
+```
+
+---
+
+#### 워크플로우 4: 설정 변경
+
+```
+툴바에서 [⚙ 설정] 클릭 → 3개 탭으로 구성:
+```
+
+**탭 1: 일반**
+```
+┌ VMware 설정 ──────────────────────────────────────┐
+│ VMware 설치 경로: [C:\...\VMware Workstation] [찾아보기]│
+└───────────────────────────────────────────────────┘
+┌ 저장 경로 ────────────────────────────────────────┐
+│ 시나리오 저장: [.\Scenarios] [찾아보기]              │
+│ 결과 저장:    [.\Results  ] [찾아보기]              │
+└───────────────────────────────────────────────────┘
+```
+
+**탭 2: 알림**
+```
+☑ 알림 사용
+
+┌ 알림 설정 ────────────────────────────────────────┐
+│ 알림 유형: [Slack ▼]  (Slack / Microsoft Teams / Email)│
+│                                                    │
+│ < Slack 선택 시 >                                   │
+│ Webhook URL: [https://hooks.slack.com/services/...]│
+│                                                    │
+│ < Teams 선택 시 >                                   │
+│ Webhook URL: [https://outlook.office.com/webhook/...]│
+│                                                    │
+│ < Email 선택 시 >                                   │
+│ SMTP 서버: [smtp.gmail.com    ] 포트: [587]        │
+│ 사용자명:  [qa-team@company.com]                    │
+│ 비밀번호:  [••••••••          ]                     │
+│ 받는 사람: [team@company.com  ] (쉼표로 다수 지정)  │
+│                                                    │
+│ [연결 테스트]  ← 설정 확인용                         │
+└───────────────────────────────────────────────────┘
+┌ 알림 조건 ────────────────────────────────────────┐
+│ ☐ 테스트 시작 시 알림                               │
+│ ☑ 테스트 완료 시 알림                               │
+│ ☑ 테스트 실패 시 알림                               │
+│ ☑ 오류 발생 시 알림                                 │
+└───────────────────────────────────────────────────┘
+```
+
+**탭 3: VM 관리**
+```
+[VMware에서 가져오기] [VM 추가] [VM 제거]
+
+┌─────────────────────────────────────────────────┐
+│ 이름      │ VMX 경로              │사용자명│비밀번호│
+│ Win10-QA  │ D:\VMware\Win10\...   │Admin  │••••  │
+│ Win11-QA  │ D:\VMware\Win11\...   │Admin  │••••  │
+│ WinSvr    │ D:\VMware\WinSvr\...  │Admin  │••••  │
+└─────────────────────────────────────────────────┘
+※ 셀을 더블클릭하여 편집
+```
+
+---
+
+#### 워크플로우 5: 스케줄러 (예약 실행)
+
+```
+툴바에서 [⏰ 스케줄] 클릭:
+
+┌─────────────────────────────┬──────────────────┐
+│ 예약된 작업                  │ 스케줄 설정       │
+│                              │                  │
+│ ☑ 야간회귀  회귀테스트 Daily │ 이름:   [야간회귀]│
+│   03-13 02:00               │ 시나리오:[회귀▼]  │
+│ ☐ 주간빌드  빌드검증 Weekly  │ 유형:   [매일 ▼] │
+│   03-15 09:00               │ 실행시간:[02]:[00]│
+│                              │                  │
+│         [추가] [삭제]        │ ☑ 활성화         │
+│                              │         [저장]   │
+└─────────────────────────────┴──────────────────┘
+
+유형별 추가 옵션:
+- "매주" 선택 시 → 요일 선택 드롭다운 (일~토)
+- "매월" 선택 시 → 일자 입력 (1~31)
+- "간격" 선택 시 → 반복 간격 설정
+```
+
+**사용 시 주의:** 프로그램이 켜져 있어야 스케줄이 동작합니다.
+
+---
+
+#### 워크플로우 6: 결과 확인 및 리포트
+
+```
+실행 완료 후 활용 방법:
+
+1. 테스트 결과 패널 (우측)
+   → 각 항목 마우스 오버 시 툴팁으로 상세 정보 확인:
+     - 스텝 이름, 오류 메시지, 프로그램 출력, Exit Code
+
+2. [📊 이력] 버튼
+   → 과거 실행 기록 조회
+   → 날짜/시나리오별 결과 확인
+
+3. [📄 리포트] 버튼
+   → HTML 리포트 자동 생성 (브라우저에서 열기 가능)
+   → 색상 코딩, 접히는 섹션, 스크린샷 포함
+   → 공유 폴더나 이메일로 전달 가능
+
+4. 로그 [💾] 버튼
+   → 전체 실행 로그를 텍스트 파일로 저장
+```
+
+---
+
+#### 워크플로우 7: 시나리오 공유 (내보내기/가져오기)
+
+```
+다른 팀원에게 시나리오를 공유하려면:
+
+1. 내보내기: 중앙 패널에서 시나리오 우클릭 → "내보내기"
+   또는 [📤] 버튼 클릭 → JSON 파일로 저장
+
+2. 가져오기: [📥] 버튼 클릭 → JSON 파일 선택
+   또는 시나리오 우클릭 → "가져오기"
+
+3. 복제: [📋] 버튼 클릭 → 선택한 시나리오의 사본 생성
+```
+
+---
+
+### D. 활용 케이스 (GUI 기반)
 
 #### 케이스 1: 단일 VM 설치 테스트
 
-> **상황**: 신규 빌드된 설치 파일(setup.exe)이 정상 설치되는지 확인
+> **상황**: 신규 빌드 setup.exe가 정상 설치되는지 확인
 
-```json
-{
-  "Name": "설치 테스트 - v2.5.0",
-  "MaxParallelVMs": 1,
-  "MaxRetryCount": 1,
-  "ContinueOnFailure": false,
-  "Steps": [
-    {
-      "Name": "설치 파일 실행",
-      "TargetVmxPath": "D:\\VMware\\Win10-QA\\Win10-QA.vmx",
-      "SnapshotName": "Clean",
-      "FilesToCopyToVM": [
-        {
-          "SourcePath": "D:\\Builds\\v2.5.0\\setup.exe",
-          "DestinationPath": "C:\\Temp\\setup.exe"
-        }
-      ],
-      "Execution": {
-        "Type": "Program",
-        "ExecutablePath": "C:\\Temp\\setup.exe",
-        "Arguments": "/S /NORESTART",
-        "TimeoutSeconds": 300
-      },
-      "SuccessCriteria": {
-        "ExpectedExitCode": 0
-      },
-      "ForceNetworkDisconnect": false,
-      "ForceSnapshotRevertAfter": true
-    }
-  ]
-}
 ```
-
-**포인트:**
-- `/S /NORESTART`: 무인 설치 + 재부팅 방지
-- `ForceSnapshotRevertAfter: true`: 테스트 후 VM을 깨끗한 상태로 복원
-- `MaxRetryCount: 1`: 실패 시 1회 자동 재시도 (스냅샷 롤백 후)
-
----
-
-#### 케이스 2: 다중 VM 병렬 회귀 테스트
-
-> **상황**: Windows 10, Windows 11, Windows Server 2019에서 동시에 회귀 테스트 실행
-
-```json
-{
-  "Name": "크로스 플랫폼 회귀 테스트",
-  "MaxParallelVMs": 3,
-  "MaxRetryCount": 2,
-  "ContinueOnFailure": true,
-  "TargetVMPaths": [
-    "D:\\VMware\\Win10-QA\\Win10-QA.vmx",
-    "D:\\VMware\\Win11-QA\\Win11-QA.vmx",
-    "D:\\VMware\\WinSvr2019\\WinSvr2019.vmx"
-  ],
-  "Steps": [
-    {
-      "Name": "테스트 스위트 실행",
-      "SnapshotName": "TestReady",
-      "FilesToCopyToVM": [
-        {
-          "SourcePath": "D:\\Builds\\latest\\product.msi",
-          "DestinationPath": "C:\\Temp\\product.msi"
-        },
-        {
-          "SourcePath": "D:\\Tests\\regression_suite.bat",
-          "DestinationPath": "C:\\Temp\\regression_suite.bat"
-        }
-      ],
-      "Execution": {
-        "Type": "Script",
-        "ExecutablePath": "C:\\Temp\\regression_suite.bat",
-        "TimeoutSeconds": 1800
-      },
-      "ResultFilesToCollect": [
-        {
-          "SourcePath": "C:\\Temp\\test_result.json",
-          "DestinationPath": "{RESULT_DIR}\\{VM_NAME}_result.json"
-        }
-      ],
-      "SuccessCriteria": {
-        "ExpectedExitCode": 0,
-        "ResultJsonPath": "$.summary.failed",
-        "ExpectedJsonValue": "0"
-      },
-      "ForceSnapshotRevertAfter": true
-    }
-  ]
-}
-```
-
-**포인트:**
-- `MaxParallelVMs: 3`: 3개 VM이 **동시에** 실행
-- `ContinueOnFailure: true`: 한 VM이 실패해도 나머지는 계속 진행
-- `MaxRetryCount: 2`: 실패 시 최대 2회 재시도 (스냅샷 롤백 포함)
-- `{VM_NAME}` 매크로로 VM별 결과 파일 분리
-- `ResultJsonPath`: 결과 JSON에서 `$.summary.failed` 값이 `0`인지 검증
-
----
-
-#### 케이스 3: 오프라인(네트워크 차단) 테스트
-
-> **상황**: 인터넷 없이 제품이 정상 동작하는지 확인 (라이선스 서버 미연결 등)
-
-```json
-{
-  "Name": "오프라인 동작 테스트",
-  "Steps": [
-    {
-      "Name": "네트워크 차단 후 기능 테스트",
-      "TargetVmxPath": "D:\\VMware\\Win10-QA\\Win10-QA.vmx",
-      "SnapshotName": "ProductInstalled",
-      "ForceNetworkDisconnect": true,
-      "Execution": {
-        "Type": "Program",
-        "ExecutablePath": "C:\\Program Files\\MyProduct\\MyProduct.exe",
-        "Arguments": "--self-test",
-        "TimeoutSeconds": 120
-      },
-      "SuccessCriteria": {
-        "ExpectedExitCode": 0,
-        "ContainsText": "All tests passed",
-        "NotContainsText": "License error"
-      },
-      "CaptureScreenshots": true,
-      "ScreenshotIntervalSeconds": 15,
-      "ForceSnapshotRevertAfter": true
-    }
-  ]
-}
-```
-
-**포인트:**
-- `ForceNetworkDisconnect: true`: 파일 복사 후 네트워크를 자동 비활성화, 결과 수집 전 재활성화
-- `ContainsText` / `NotContainsText`: 출력 텍스트로 성공 판정
-- `CaptureScreenshots`: 15초 간격으로 스크린샷 → 실패 시 원인 분석에 활용
-
----
-
-#### 케이스 4: 설치 → 테스트 → 실패 시 로그 수집 (조건부 실행)
-
-> **상황**: 설치 성공 시에만 테스트 진행, 실패 시 디버그 로그 수집
-
-```json
-{
-  "Name": "설치 후 검증 + 실패 시 로그 수집",
-  "ContinueOnFailure": true,
-  "Steps": [
-    {
-      "Name": "Step 1: 제품 설치",
-      "Order": 0,
-      "TargetVmxPath": "D:\\VMware\\Win10-QA\\Win10-QA.vmx",
-      "SnapshotName": "Clean",
-      "FilesToCopyToVM": [
-        {
-          "SourcePath": "D:\\Builds\\latest\\setup.exe",
-          "DestinationPath": "C:\\Temp\\setup.exe"
-        }
-      ],
-      "Execution": {
-        "Type": "Program",
-        "ExecutablePath": "C:\\Temp\\setup.exe",
-        "Arguments": "/S",
-        "TimeoutSeconds": 300
-      },
-      "SuccessCriteria": { "ExpectedExitCode": 0 },
-      "ForceSnapshotRevertAfter": false
-    },
-    {
-      "Name": "Step 2: 기능 테스트 (설치 성공 시만)",
-      "Order": 1,
-      "Condition": {
-        "Type": "PreviousStepPassed"
-      },
-      "Execution": {
-        "Type": "Program",
-        "ExecutablePath": "C:\\Program Files\\MyProduct\\test_runner.exe",
-        "TimeoutSeconds": 600
-      },
-      "ResultFilesToCollect": [
-        {
-          "SourcePath": "C:\\Temp\\test_report.html",
-          "DestinationPath": "{RESULT_DIR}\\test_report.html"
-        }
-      ],
-      "SuccessCriteria": { "ExpectedExitCode": 0 },
-      "ForceSnapshotRevertAfter": false
-    },
-    {
-      "Name": "Step 3: 실패 로그 수집 (이전 스텝 실패 시만)",
-      "Order": 2,
-      "Condition": {
-        "Type": "AnyPreviousFailed"
-      },
-      "Execution": {
-        "Type": "Command",
-        "ExecutablePath": "cmd.exe",
-        "Arguments": "/c copy C:\\ProgramData\\MyProduct\\logs\\*.log C:\\Temp\\debug_logs\\",
-        "TimeoutSeconds": 60
-      },
-      "ResultFilesToCollect": [
-        {
-          "SourcePath": "C:\\Temp\\debug_logs\\*",
-          "DestinationPath": "{RESULT_DIR}\\debug_logs\\"
-        }
-      ],
-      "ForceSnapshotRevertAfter": true
-    }
-  ]
-}
-```
-
-**포인트:**
-- Step 2: `PreviousStepPassed` → 설치(Step 1) 성공 시에만 실행
-- Step 3: `AnyPreviousFailed` → 어떤 스텝이든 실패했으면 로그 수집
-- `ForceSnapshotRevertAfter: false` → Step 1~2는 스냅샷 유지 (이어서 진행), Step 3에서 복원
-
----
-
-#### 케이스 5: 파일 분배 병렬 테스트
-
-> **상황**: 10개의 테스트 파일을 3개 VM에 분배하여 병렬 실행
-
-```json
-{
-  "Name": "테스트 파일 분배 실행",
-  "MaxParallelVMs": 3,
-  "TargetVMPaths": [
-    "D:\\VMware\\VM1\\VM1.vmx",
-    "D:\\VMware\\VM2\\VM2.vmx",
-    "D:\\VMware\\VM3\\VM3.vmx"
-  ],
-  "TestTargetFiles": [
-    { "HostFilePath": "D:\\Tests\\test_01.dat", "VMDestinationPath": "C:\\Temp\\test.dat", "Description": "로그인 테스트" },
-    { "HostFilePath": "D:\\Tests\\test_02.dat", "VMDestinationPath": "C:\\Temp\\test.dat", "Description": "결제 테스트" },
-    { "HostFilePath": "D:\\Tests\\test_03.dat", "VMDestinationPath": "C:\\Temp\\test.dat", "Description": "검색 테스트" },
-    { "HostFilePath": "D:\\Tests\\test_04.dat", "VMDestinationPath": "C:\\Temp\\test.dat", "Description": "알림 테스트" },
-    { "HostFilePath": "D:\\Tests\\test_05.dat", "VMDestinationPath": "C:\\Temp\\test.dat", "Description": "설정 테스트" },
-    { "HostFilePath": "D:\\Tests\\test_06.dat", "VMDestinationPath": "C:\\Temp\\test.dat", "Description": "내보내기 테스트" }
-  ],
-  "Steps": [
-    {
-      "Name": "분배된 테스트 실행",
-      "SnapshotName": "TestReady",
-      "Execution": {
-        "Type": "Program",
-        "ExecutablePath": "C:\\Tools\\test_executor.exe",
-        "Arguments": "--input C:\\Temp\\test.dat --output C:\\Temp\\result.json",
-        "TimeoutSeconds": 600
-      },
-      "ResultFilesToCollect": [
-        {
-          "SourcePath": "C:\\Temp\\result.json",
-          "DestinationPath": "{RESULT_DIR}\\{VM_NAME}_result.json"
-        }
-      ],
-      "SuccessCriteria": { "ExpectedExitCode": 0 }
-    }
-  ]
-}
-```
-
-**포인트:**
-- `TestTargetFiles` 6개 → 3개 VM에 2개씩 자동 분배
-- 각 VM은 동일한 스텝을 실행하되, 할당된 파일만 다름
-- VM1: test_01, test_02 / VM2: test_03, test_04 / VM3: test_05, test_06
-
----
-
-#### 케이스 6: Pre/Post 이벤트 활용
-
-> **상황**: 테스트 전에 빌드 서버에서 최신 바이너리 다운로드, 테스트 후 결과를 공유 폴더에 복사
-
-```json
-{
-  "Name": "빌드 연동 테스트",
-  "PreTestEvent": {
-    "IsEnabled": true,
-    "Type": "PowerShell",
-    "Command": "Invoke-WebRequest -Uri 'http://build-server/latest/setup.exe' -OutFile 'D:\\Builds\\latest\\setup.exe'",
-    "TimeoutSeconds": 120,
-    "StopOnFailure": true,
-    "HideWindow": true
-  },
-  "PostTestEvent": {
-    "IsEnabled": true,
-    "Type": "BatchFile",
-    "Command": "xcopy /Y /S .\\Results\\* \\\\file-server\\QA\\Results\\",
-    "RunCondition": "Always",
-    "TimeoutSeconds": 60,
-    "EnvironmentVariables": {
-      "BUILD_VERSION": "2.5.0",
-      "TESTER": "QA-Team"
-    }
-  },
-  "Steps": [
-    {
-      "Name": "설치 테스트",
-      "TargetVmxPath": "D:\\VMware\\Win10-QA\\Win10-QA.vmx",
-      "SnapshotName": "Clean",
-      "FilesToCopyToVM": [
-        {
-          "SourcePath": "D:\\Builds\\latest\\setup.exe",
-          "DestinationPath": "C:\\Temp\\setup.exe"
-        }
-      ],
-      "Execution": {
-        "Type": "Program",
-        "ExecutablePath": "C:\\Temp\\setup.exe",
-        "Arguments": "/S",
-        "TimeoutSeconds": 300
-      },
-      "SuccessCriteria": { "ExpectedExitCode": 0 }
-    }
-  ]
-}
-```
-
-**포인트:**
-- `PreTestEvent`: 테스트 시작 **전에** 빌드 서버에서 최신 파일 다운로드
-  - `StopOnFailure: true`: 다운로드 실패 시 테스트 진행하지 않음
-- `PostTestEvent`: 테스트 완료 **후에** 결과를 공유 폴더로 복사
-  - `RunCondition: Always`: 성공/실패 관계없이 항상 실행
-  - `EnvironmentVariables`: 환경 변수 주입 가능
-
----
-
-#### 케이스 7: 야간 자동 회귀 테스트 (스케줄러)
-
-> **상황**: 매일 새벽 2시에 자동으로 전체 회귀 테스트 실행
-
-**설정 방법:**
-1. GUI에서 ⏰ 스케줄러 버튼 클릭
-2. 스케줄 추가:
-   - **이름**: 야간 회귀 테스트
-   - **시나리오**: "전체 회귀 테스트" 선택
-   - **유형**: Daily
-   - **실행 시각**: 02:00
-3. 활성화 후 프로그램을 켜둔 상태로 유지
-
-**Slack 알림과 함께 사용하면** 출근 시 결과를 바로 확인할 수 있습니다:
-
-```json
-{
-  "Notification": {
-    "Enabled": true,
-    "Type": "Slack",
-    "SlackWebhookUrl": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
-    "NotifyOnComplete": true,
-    "NotifyOnFailure": true,
-    "NotifyOnStart": true
-  }
-}
+1. [📝 새 시나리오] 클릭
+2. 기본 정보 탭:
+   - 이름: "설치 테스트 v2.5.0"
+   - 병렬 VM: 1
+3. 스텝 [추가] 클릭
+4. 스텝 편집:
+   - 스텝 이름: "설치 실행"
+   - 대상 VM: Win10-QA 선택
+   - 스냅샷: Clean 선택
+   - 파일 복사: [파일 추가] → D:\Builds\setup.exe → C:\Temp\setup.exe
+   - 실행 유형: Program
+   - 실행 경로: C:\Temp\setup.exe
+   - 인수: /S /NORESTART
+   - 타임아웃: 300
+   - ☑ 완료 후 스냅샷 복원
+   - ☐ 네트워크 강제 분리 (해제)
+5. [저장]
+6. F5로 실행
 ```
 
 ---
 
-#### 케이스 8: CI/CD 파이프라인 연동
+#### 케이스 2: 다중 VM 병렬 테스트
 
-> **상황**: Jenkins/GitHub Actions에서 빌드 후 자동으로 VM 테스트 실행
+> **상황**: Win10, Win11, WinServer에서 동시에 테스트
+
+```
+1. 시나리오 편집기 열기
+2. 기본 정보 탭:
+   - 병렬 VM: 3
+   - ☑ 실패 시 계속 진행
+3. "대상 VM / 파일 분배" 탭:
+   - Win10-QA  ☑
+   - Win11-QA  ☑
+   - WinSvr    ☑
+4. 스텝 추가 후 설정 (VM은 공통 스텝 사용)
+5. 결과 수집 경로에 {VM_NAME} 매크로 사용:
+   - VM 내 경로: C:\Temp\result.json
+   - 호스트 경로: {RESULT_DIR}\{VM_NAME}_result.json
+6. [저장] 후 실행
+   → 좌측에 3개 VM의 실시간 진행 상태가 동시에 표시됨
+```
+
+---
+
+#### 케이스 3: 오프라인 테스트 (네트워크 차단)
+
+> **상황**: 인터넷 없이 제품이 정상 동작하는지 확인
+
+```
+1. 스텝 편집에서:
+   - ☑ 네트워크 강제 분리  ← 체크
+   - ☑ 스크린샷 캡처, 간격: 15초
+2. 실행하면:
+   파일 복사 → 네트워크 차단 → 프로그램 실행 → 네트워크 복원 → 결과 수집
+   (자동으로 차단/복원 처리)
+```
+
+---
+
+#### 케이스 4: 조건부 실행 (설치 → 테스트 → 실패 시 로그)
+
+> **상황**: 설치 성공 시에만 테스트, 실패하면 디버그 로그 수집
+
+```
+1. 스텝 3개 추가:
+
+   스텝 #0 "제품 설치":
+   - 실행 조건: 항상 실행
+   - ☐ 완료 후 스냅샷 복원 (해제 — 설치 상태 유지)
+
+   스텝 #1 "기능 테스트":
+   - 실행 조건: "이전 스텝 성공 시" 선택
+   - ☐ 완료 후 스냅샷 복원 (해제)
+
+   스텝 #2 "로그 수집":
+   - 실행 조건: "하나라도 실패 시" 선택
+   - 결과 수집: C:\ProgramData\MyProduct\logs\*.log
+   - ☑ 완료 후 스냅샷 복원
+```
+
+---
+
+#### 케이스 5: Pre/Post 이벤트 활용
+
+> **상황**: 실행 전 빌드 서버에서 다운로드, 실행 후 결과를 공유 폴더로 복사
+
+```
+1. 시나리오 편집기 → "테스트 전 이벤트" 탭:
+   - ☑ 테스트 전 이벤트 활성화
+   - 유형: PowerShell
+   - 명령: Invoke-WebRequest -Uri 'http://build/latest/setup.exe' ...
+   - ☑ 실패 시 테스트 중단
+
+2. "테스트 후 이벤트" 탭:
+   - ☑ 테스트 후 이벤트 활성화
+   - 유형: 배치 파일
+   - 명령: xcopy /Y /S .\Results\* \\file-server\QA\Results\
+   - 실행 조건: "항상 실행"
+```
+
+---
+
+#### 케이스 6: 야간 자동 실행 + Slack 알림
+
+> **상황**: 매일 새벽 2시 자동 회귀 테스트, 출근 시 Slack으로 결과 확인
+
+```
+1. [⚙ 설정] → "알림" 탭:
+   - ☑ 알림 사용
+   - 유형: Slack
+   - Webhook URL 입력
+   - [연결 테스트]로 확인
+   - ☑ 테스트 시작 시 / ☑ 완료 시 / ☑ 실패 시
+
+2. [⏰ 스케줄] 클릭:
+   - [추가]
+   - 이름: "야간 회귀"
+   - 시나리오: "전체 회귀 테스트" 선택
+   - 유형: "매일"
+   - 실행 시간: 02:00
+   - ☑ 활성화
+   - [저장]
+
+3. 프로그램을 켜둔 상태로 유지
+   → 새벽 2시에 자동 실행 → Slack으로 결과 알림
+```
+
+---
+
+#### 케이스 7: CI/CD 연동 (CLI 모드)
+
+> **상황**: Jenkins/GitHub Actions에서 빌드 후 자동 VM 테스트
+
+GUI에서 시나리오를 미리 만들어 두고, CI/CD에서는 CLI로 호출합니다:
+
+```bash
+# 기본 실행
+AutoRegressionVM.exe --scenario "회귀 테스트" --parallel 3
+
+# JUnit XML 결과 + 타임아웃 설정
+AutoRegressionVM.exe --scenario "회귀 테스트" --output xml --report results.xml --timeout 120
+
+# 특정 VM만 실행
+AutoRegressionVM.exe --scenario "회귀 테스트" --vm "Win10-QA"
+
+# 드라이런 (실제 실행 없이 검증)
+AutoRegressionVM.exe --scenario "회귀 테스트" --dry-run
+```
 
 **Jenkins Pipeline 예시:**
 ```groovy
-pipeline {
-    agent { label 'qa-machine' }
-    stages {
-        stage('Build') {
-            steps {
-                bat 'msbuild MyProduct.sln /p:Configuration=Release'
-            }
-        }
-        stage('VM Regression Test') {
-            steps {
-                bat '''
-                    AutoRegressionVM.exe --scenario "회귀 테스트" ^
-                        --parallel 3 ^
-                        --timeout 120 ^
-                        --output xml ^
-                        --report "%WORKSPACE%\\test-results.xml" ^
-                        --verbose
-                '''
-            }
-            post {
-                always {
-                    junit 'test-results.xml'
-                }
-            }
-        }
+stage('VM Regression Test') {
+    steps {
+        bat 'AutoRegressionVM.exe --scenario "회귀 테스트" --output xml --report results.xml --timeout 120 --verbose'
     }
+    post { always { junit 'results.xml' } }
 }
 ```
 
-**GitHub Actions 예시:**
-```yaml
-jobs:
-  vm-test:
-    runs-on: self-hosted  # QA PC에 self-hosted runner 설치 필요
-    steps:
-      - name: Run VM Regression
-        run: |
-          AutoRegressionVM.exe --scenario "스모크 테스트" `
-            --parallel 2 --timeout 60 --output xml `
-            --report "results.xml"
-        shell: pwsh
+**Exit Code로 배포 결정:**
 
-      - name: Publish Results
-        uses: dorny/test-reporter@v1
-        if: always()
-        with:
-          name: VM Test Results
-          path: results.xml
-          reporter: java-junit
-```
-
-**Exit Code 활용:**
-```bash
-AutoRegressionVM.exe --scenario "스모크 테스트" --timeout 30
-EXIT_CODE=$?
-
-if [ $EXIT_CODE -eq 0 ]; then
-    echo "모든 테스트 통과 → 배포 진행"
-elif [ $EXIT_CODE -eq 1 ]; then
-    echo "일부 테스트 실패 → 배포 중단"
-elif [ $EXIT_CODE -eq 5 ]; then
-    echo "타임아웃 → 재시도 필요"
-fi
-```
-
----
-
-#### 케이스 9: 장시간 실행 + 스크린샷 모니터링
-
-> **상황**: 업데이트 설치에 30분 이상 소요, 진행 상황을 스크린샷으로 기록
-
-```json
-{
-  "Name": "대규모 업데이트 테스트",
-  "Steps": [
-    {
-      "Name": "업데이트 실행 및 모니터링",
-      "TargetVmxPath": "D:\\VMware\\Win10-QA\\Win10-QA.vmx",
-      "SnapshotName": "v2.4_Installed",
-      "FilesToCopyToVM": [
-        {
-          "SourcePath": "D:\\Builds\\v2.5.0\\update_patch.exe",
-          "DestinationPath": "C:\\Temp\\update_patch.exe"
-        }
-      ],
-      "Execution": {
-        "Type": "Program",
-        "ExecutablePath": "C:\\Temp\\update_patch.exe",
-        "Arguments": "/S /UPDATE",
-        "TimeoutSeconds": 3600
-      },
-      "WaitAfterExecution": {
-        "Minutes": 5,
-        "Seconds": 0
-      },
-      "CaptureScreenshots": true,
-      "ScreenshotIntervalSeconds": 30,
-      "SuccessCriteria": {
-        "ExpectedExitCode": 0
-      },
-      "ForceSnapshotRevertAfter": true
-    }
-  ]
-}
-```
-
-**포인트:**
-- `TimeoutSeconds: 3600`: 최대 1시간 대기
-- `WaitAfterExecution`: 실행 후 추가 5분 대기 (재부팅 등 후처리 고려)
-- `CaptureScreenshots` + `ScreenshotIntervalSeconds: 30`: 30초 간격으로 스크린샷
-- 스크린샷은 결과 폴더에 자동 저장 → 실패 시 어느 단계에서 멈췄는지 확인 가능
-
----
-
-#### 케이스 10: 매크로 활용 — 날짜별 결과 정리
-
-> **상황**: 매일 실행되는 테스트 결과를 날짜/VM별로 자동 분류
-
-```json
-{
-  "Name": "일일 스모크 테스트",
-  "Steps": [
-    {
-      "Name": "스모크 테스트 실행",
-      "TargetVmxPath": "D:\\VMware\\Win10-QA\\Win10-QA.vmx",
-      "SnapshotName": "ProductInstalled",
-      "Execution": {
-        "Type": "Script",
-        "ExecutablePath": "C:\\Tests\\smoke_test.bat",
-        "Arguments": "{SCENARIO_NAME} {DATETIME}",
-        "TimeoutSeconds": 300
-      },
-      "ResultFilesToCollect": [
-        {
-          "SourcePath": "C:\\Temp\\smoke_result.json",
-          "DestinationPath": "D:\\QA_Results\\{DATE}\\{VM_NAME}\\smoke_result_{TIME}.json"
-        },
-        {
-          "SourcePath": "C:\\Temp\\smoke_log.txt",
-          "DestinationPath": "D:\\QA_Results\\{DATE}\\{VM_NAME}\\smoke_log_{TIME}.txt"
-        }
-      ],
-      "SuccessCriteria": {
-        "ExpectedExitCode": 0,
-        "ContainsText": "SMOKE TEST PASSED"
-      }
-    }
-  ]
-}
-```
-
-**결과 폴더 구조 예시:**
-```
-D:\QA_Results\
-├── 20260312\
-│   └── Win10-QA\
-│       ├── smoke_result_020015.json
-│       └── smoke_log_020015.txt
-├── 20260313\
-│   └── Win10-QA\
-│       ├── smoke_result_020012.json
-│       └── smoke_log_020012.txt
-```
+| 코드 | 의미 | CI/CD 대응 |
+|------|------|-----------|
+| `0` | 모든 테스트 성공 | 배포 진행 |
+| `1` | 일부 실패 | 배포 중단, 리포트 확인 |
+| `5` | 타임아웃 | 재시도 또는 타임아웃 증가 |
 
 ---
 
