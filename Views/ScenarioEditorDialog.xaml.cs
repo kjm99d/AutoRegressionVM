@@ -53,6 +53,8 @@ namespace AutoRegressionVM.Views
         private bool _isLoadingStep;
         private Point _dragStartPoint;
         private bool _isDragging;
+        private bool _isDirty;
+        private bool _isSaved;
 
         public ScenarioEditorDialog(IEnumerable<VMInfo> availableVMs, TestScenario existingScenario = null, IVMwareService vmwareService = null)
         {
@@ -79,6 +81,19 @@ namespace AutoRegressionVM.Views
                 _existingCreatedAt = existingScenario.CreatedAt;
                 LoadScenario(existingScenario);
             }
+
+            // 변경 감지 (로드 완료 후 dirty 추적 시작)
+            Loaded += (s, args) =>
+            {
+                _isDirty = false;
+                _steps.CollectionChanged += (_, __) => _isDirty = true;
+                _filesToVM.CollectionChanged += (_, __) => _isDirty = true;
+                _resultFiles.CollectionChanged += (_, __) => _isDirty = true;
+                _testTargetFiles.CollectionChanged += (_, __) => _isDirty = true;
+                txtName.TextChanged += (_, __) => _isDirty = true;
+                txtStepName.TextChanged += (_, __) => _isDirty = true;
+                txtExecPath.TextChanged += (_, __) => _isDirty = true;
+            };
         }
 
         private void LoadScenario(TestScenario scenario)
@@ -471,6 +486,7 @@ namespace AutoRegressionVM.Views
                 Result.CreatedAt = _existingCreatedAt;
             }
 
+            _isSaved = true;
             DialogResult = true;
             Close();
         }
@@ -715,6 +731,111 @@ namespace AutoRegressionVM.Views
             var showRefStep = cboConditionType.SelectedIndex == (int)ConditionType.SpecificStepResult;
             lblRefStep.Visibility = showRefStep ? Visibility.Visible : Visibility.Collapsed;
             cboRefStep.Visibility = showRefStep ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void DuplicateStep_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentStep == null) return;
+
+            SaveCurrentStep();
+
+            var cloned = new TestStep
+            {
+                Name = _currentStep.Name + " (복사)",
+                Order = _steps.Count,
+                TargetVmxPath = _currentStep.TargetVmxPath,
+                SnapshotName = _currentStep.SnapshotName,
+                ForceNetworkDisconnect = _currentStep.ForceNetworkDisconnect,
+                ForceSnapshotRevertAfter = _currentStep.ForceSnapshotRevertAfter,
+                CaptureScreenshots = _currentStep.CaptureScreenshots,
+                ScreenshotIntervalSeconds = _currentStep.ScreenshotIntervalSeconds,
+                Execution = new ExecutionInfo
+                {
+                    Type = _currentStep.Execution?.Type ?? ExecutionType.Program,
+                    ExecutablePath = _currentStep.Execution?.ExecutablePath,
+                    Arguments = _currentStep.Execution?.Arguments,
+                    WorkingDirectory = _currentStep.Execution?.WorkingDirectory,
+                    TimeoutSeconds = _currentStep.Execution?.TimeoutSeconds ?? 300,
+                    WaitForExit = _currentStep.Execution?.WaitForExit ?? true
+                },
+                WaitAfterExecution = new WaitTime
+                {
+                    Hours = _currentStep.WaitAfterExecution?.Hours ?? 0,
+                    Minutes = _currentStep.WaitAfterExecution?.Minutes ?? 0,
+                    Seconds = _currentStep.WaitAfterExecution?.Seconds ?? 0
+                },
+                FilesToCopyToVM = _currentStep.FilesToCopyToVM?.Select(f => new FileCopyInfo
+                {
+                    SourcePath = f.SourcePath,
+                    DestinationPath = f.DestinationPath
+                }).ToList() ?? new List<FileCopyInfo>(),
+                ResultFilesToCollect = _currentStep.ResultFilesToCollect?.Select(f => new FileCopyInfo
+                {
+                    SourcePath = f.SourcePath,
+                    DestinationPath = f.DestinationPath
+                }).ToList() ?? new List<FileCopyInfo>()
+            };
+
+            _steps.Add(cloned);
+            lstSteps.SelectedItem = cloned;
+            _isDirty = true;
+        }
+
+        private void WaitPreset_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is FrameworkElement element && element.Tag != null)
+            {
+                int totalSeconds = int.Parse(element.Tag.ToString());
+                txtWaitHours.Text = (totalSeconds / 3600).ToString();
+                txtWaitMinutes.Text = ((totalSeconds % 3600) / 60).ToString();
+                txtWaitSeconds.Text = (totalSeconds % 60).ToString();
+            }
+        }
+
+        private void StepList_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Delete && _currentStep != null)
+            {
+                RemoveStep_Click(sender, e);
+                e.Handled = true;
+            }
+        }
+
+        private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            if (_isSaved) return;
+
+            if (_isDirty)
+            {
+                var result = MessageBox.Show(
+                    "변경사항이 저장되지 않았습니다. 저장하지 않고 닫으시겠습니까?",
+                    "저장되지 않은 변경사항",
+                    MessageBoxButton.YesNoCancel,
+                    MessageBoxImage.Warning);
+
+                switch (result)
+                {
+                    case MessageBoxResult.Yes:
+                        // 저장하지 않고 닫기
+                        break;
+                    case MessageBoxResult.No:
+                        // 저장 후 닫기
+                        Save_Click(sender, new RoutedEventArgs());
+                        if (!_isSaved)
+                        {
+                            e.Cancel = true; // 저장 실패 또는 유효성 검증 실패
+                        }
+                        break;
+                    case MessageBoxResult.Cancel:
+                        e.Cancel = true;
+                        break;
+                }
+            }
+        }
+
+        private void SaveShortcut_Executed(object sender, ExecutedRoutedEventArgs e)
+        {
+            Save_Click(sender, e);
         }
 
         #region Event Handlers for Pre/Post Events
