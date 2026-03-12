@@ -76,6 +76,8 @@
     <Compile Include="Services\ReportService.cs" />
     <Compile Include="Services\MacroService.cs" />
     <Compile Include="Services\SchedulerService.cs" />
+    <Compile Include="Services\TestExecution\IBatchRunnerService.cs" />
+    <Compile Include="Services\TestExecution\BatchRunnerService.cs" />
     <Compile Include="Services\TestExecution\ITestRunner.cs" />
     <Compile Include="Services\TestExecution\TestRunner.cs" />
     <Compile Include="Services\VMware\IVMwareService.cs" />
@@ -119,6 +121,12 @@
     <Compile Include="Views\TestHistoryDialog.xaml.cs">
       <DependentUpon>TestHistoryDialog.xaml</DependentUpon>
     </Compile>
+    <Page Include="Views\BatchRunDialog.xaml">
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Compile Include="Views\BatchRunDialog.xaml.cs">
+      <DependentUpon>BatchRunDialog.xaml</DependentUpon>
+    </Compile>
     <Page Include="Views\SchedulerDialog.xaml">
       <Generator>MSBuild:Compile</Generator>
     </Page>
@@ -127,6 +135,7 @@
     </Compile>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Models\BatchRunResult.cs" />
     <Compile Include="Models\AppSettings.cs" />
     <Compile Include="Models\VMExecutionStatus.cs" />
     <Compile Include="Models\Snapshot.cs" />

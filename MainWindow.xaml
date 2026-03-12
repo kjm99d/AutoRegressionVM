@@ -81,6 +81,13 @@
                     <TextBlock Text="재실행"/>
                 </StackPanel>
             </Button>
+            <Button Command="{Binding BatchRunCommand}" Padding="10,5" Margin="2" ToolTip="여러 시나리오를 VM 풀에서 병렬 일괄 실행"
+                    Background="#FF9800" Foreground="White">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="📦" Margin="0,0,5,0"/>
+                    <TextBlock Text="일괄실행"/>
+                </StackPanel>
+            </Button>
             <Separator Margin="10,0"/>
             <Button Command="{Binding SettingsCommand}" Padding="10,5" Margin="2">
                 <StackPanel Orientation="Horizontal">

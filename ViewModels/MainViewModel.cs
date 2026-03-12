@@ -27,6 +27,7 @@ namespace AutoRegressionVM.ViewModels
         private readonly NotificationManager _notificationManager;
         private readonly IReportService _reportService;
         private readonly Services.SchedulerService _schedulerService;
+        private readonly Services.TestExecution.IBatchRunnerService _batchRunnerService;
         private AppSettings _appSettings;
         private ITestRunner _testRunner;
         private ScenarioResult _lastScenarioResult;
@@ -131,13 +132,15 @@ namespace AutoRegressionVM.ViewModels
         public ICommand ReRunCommand { get; }
         public ICommand ClearLogCommand { get; }
         public ICommand SchedulerCommand { get; }
+        public ICommand BatchRunCommand { get; }
 
         #endregion
 
         public MainViewModel(ISettingsService settingsService, IScenarioService scenarioService,
                              IReportService reportService, IVMwareService vmwareService,
                              NotificationManager notificationManager,
-                             Services.SchedulerService schedulerService)
+                             Services.SchedulerService schedulerService,
+                             Services.TestExecution.IBatchRunnerService batchRunnerService = null)
         {
             _settingsService = settingsService;
             _scenarioService = scenarioService;
@@ -146,6 +149,7 @@ namespace AutoRegressionVM.ViewModels
             _vmwareService = vmwareService;
             _notificationManager = notificationManager;
             _schedulerService = schedulerService;
+            _batchRunnerService = batchRunnerService ?? new Services.TestExecution.BatchRunnerService(vmwareService);
 
             // Commands 초기화
             ConnectCommand = new AsyncRelayCommand(async _ => await ConnectAsync(), _ => !IsConnected);
@@ -169,6 +173,7 @@ namespace AutoRegressionVM.ViewModels
             ReRunCommand = new AsyncRelayCommand(async _ => await RunScenarioAsync(), _ => IsConnected && !IsRunning && _lastScenarioResult != null && SelectedScenario != null);
             ClearLogCommand = new RelayCommand(_ => { Logs.Clear(); AddLog("로그 초기화됨"); });
             SchedulerCommand = new RelayCommand(_ => OpenScheduler());
+            BatchRunCommand = new RelayCommand(_ => OpenBatchRun(), _ => IsConnected && !IsRunning && Scenarios.Count > 0);
 
             // 스케줄러 이벤트 연결
             _schedulerService.TaskTriggered += OnScheduledTaskTriggered;
@@ -776,6 +781,38 @@ namespace AutoRegressionVM.ViewModels
                 Owner = Application.Current.MainWindow
             };
             dialog.ShowDialog();
+        }
+
+        private void OpenBatchRun()
+        {
+            _batchRunnerService.LogGenerated += OnLogGenerated;
+
+            try
+            {
+                var dialog = new BatchRunDialog(_batchRunnerService, Scenarios, VMs)
+                {
+                    Owner = Application.Current.MainWindow
+                };
+
+                if (dialog.ShowDialog() == true && dialog.Result != null)
+                {
+                    var result = dialog.Result;
+                    AddLog($"일괄 실행 완료: 총 {result.TotalScenarios}개, 성공 {result.SucceededScenarios}개, 실패 {result.FailedScenarios}개");
+
+                    // 개별 시나리오 결과를 이력에 저장
+                    foreach (var sr in result.ScenarioResults)
+                    {
+                        if (sr.Result != null)
+                        {
+                            _settingsService.SaveResult(sr.Result);
+                        }
+                    }
+                }
+            }
+            finally
+            {
+                _batchRunnerService.LogGenerated -= OnLogGenerated;
+            }
         }
 
         private async void OnScheduledTaskTriggered(object sender, Services.ScheduledTask task)
