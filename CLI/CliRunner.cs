@@ -141,7 +141,23 @@ namespace AutoRegressionVM.CLI
                 scenario.MaxParallelVMs = _options.Parallel.Value;
             }
 
-            Console.WriteLine($"[INFO] �ó����� �ε�: {scenario.Name}");
+            // --vm 옵션: 특정 VM만 대상으로 필터링
+            if (!string.IsNullOrEmpty(_options.VMName))
+            {
+                var targetVM = _appSettings.RegisteredVMs.FirstOrDefault(v =>
+                    v.Name.Equals(_options.VMName, StringComparison.OrdinalIgnoreCase));
+
+                if (targetVM == null)
+                {
+                    Console.WriteLine($"[ERROR] VM not found: {_options.VMName}");
+                    return 2;
+                }
+
+                scenario.TargetVMPaths = new System.Collections.Generic.List<string> { targetVM.VmxPath };
+                Console.WriteLine($"[INFO] Target VM: {targetVM.Name}");
+            }
+
+            Console.WriteLine($"[INFO]�ó����� �ε�: {scenario.Name}");
             Console.WriteLine($"[INFO] Steps: {scenario.Steps.Count}��");
             Console.WriteLine($"[INFO] ���� VM ��: {scenario.MaxParallelVMs}");
             Console.WriteLine();
@@ -173,9 +189,31 @@ namespace AutoRegressionVM.CLI
             Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] �׽�Ʈ ����...");
             Console.WriteLine();
 
-            var result = await testRunner.RunScenarioAsync(scenario);
+            // --timeout 옵션: 전체 실행 타임아웃
+            ScenarioResult result;
+            if (_options.TimeoutMinutes.HasValue)
+            {
+                Console.WriteLine($"[INFO] Timeout: {_options.TimeoutMinutes} min");
+                using (var cts = new System.Threading.CancellationTokenSource(
+                    TimeSpan.FromMinutes(_options.TimeoutMinutes.Value)))
+                {
+                    var runTask = testRunner.RunScenarioAsync(scenario);
+                    var completed = await Task.WhenAny(runTask, Task.Delay(-1, cts.Token).ContinueWith(_ => (ScenarioResult)null));
+                    if (completed != runTask)
+                    {
+                        testRunner.Cancel();
+                        Console.WriteLine($"[ERROR] Timeout exceeded ({_options.TimeoutMinutes} min)");
+                        return 5;
+                    }
+                    result = await runTask;
+                }
+            }
+            else
+            {
+                result = await testRunner.RunScenarioAsync(scenario);
+            }
 
-            // ��� ���
+            //��� ���
             PrintResult(result);
 
             // ��� ����
@@ -227,6 +265,10 @@ namespace AutoRegressionVM.CLI
                 var json = SerializeToJson(result);
                 Console.WriteLine(json);
             }
+            else if (_options.OutputFormat == "xml")
+            {
+                Console.WriteLine(SerializeToXml(result));
+            }
             else
             {
                 Console.WriteLine($"�ó�����: {result.ScenarioName}");
@@ -266,6 +308,31 @@ namespace AutoRegressionVM.CLI
         private string SerializeToJson(ScenarioResult result)
         {
             return JsonConvert.SerializeObject(result, Formatting.Indented);
+        }
+
+        private string SerializeToXml(ScenarioResult result)
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("<?xml version=\"1.0\" encoding=\"utf-8\"?>");
+            sb.AppendLine($"<TestRun scenario=\"{EscapeXml(result.ScenarioName)}\" start=\"{result.StartTime:o}\" end=\"{result.EndTime:o}\">");
+            sb.AppendLine($"  <Summary total=\"{result.TotalCount}\" passed=\"{result.PassedCount}\" failed=\"{result.FailedCount}\" skipped=\"{result.SkippedCount}\" success=\"{result.IsSuccess}\" />");
+            sb.AppendLine("  <Results>");
+            foreach (var tr in result.TestResults)
+            {
+                sb.AppendLine($"    <Test name=\"{EscapeXml(tr.TestStepName)}\" vm=\"{EscapeXml(tr.VMName)}\" status=\"{tr.Status}\" exitCode=\"{tr.ExitCode}\" duration=\"{tr.Duration:hh\\:mm\\:ss}\">");
+                if (!string.IsNullOrEmpty(tr.ErrorMessage))
+                    sb.AppendLine($"      <Error>{EscapeXml(tr.ErrorMessage)}</Error>");
+                sb.AppendLine("    </Test>");
+            }
+            sb.AppendLine("  </Results>");
+            sb.AppendLine("</TestRun>");
+            return sb.ToString();
+        }
+
+        private static string EscapeXml(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+            return s.Replace("&", "&amp;").Replace("<", "&lt;").Replace(">", "&gt;").Replace("\"", "&quot;");
         }
     }
 }
