@@ -5,37 +5,37 @@ using AutoRegressionVM.Models;
 namespace AutoRegressionVM.Services.TestExecution
 {
     /// <summary>
-    /// Å×½ºÆ® ½ÇÇà±â ÀÎÅÍÆäÀÌ½º
+    /// ï¿½×½ï¿½Æ® ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ì½ï¿½
     /// </summary>
     public interface ITestRunner
     {
         /// <summary>
-        /// ½Ã³ª¸®¿À ½ÇÇà
+        /// ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         Task<ScenarioResult> RunScenarioAsync(TestScenario scenario);
 
         /// <summary>
-        /// ´ÜÀÏ Step ½ÇÇà
+        /// ï¿½ï¿½ï¿½ï¿½ Step ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         Task<TestResult> RunStepAsync(TestStep step, VMInfo vm);
 
         /// <summary>
-        /// ½ÇÇà Ãë¼Ò
+        /// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½
         /// </summary>
         void Cancel();
 
         /// <summary>
-        /// ½ÇÇà Áß ¿©ºÎ
+        /// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
         /// </summary>
         bool IsRunning { get; }
 
         /// <summary>
-        /// ÁøÇà »óÈ² ÀÌº¥Æ®
+        /// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½È² ï¿½Ìºï¿½Æ®
         /// </summary>
         event EventHandler<TestProgressEventArgs> ProgressChanged;
 
         /// <summary>
-        /// ·Î±× ÀÌº¥Æ®
+        /// ï¿½Î±ï¿½ ï¿½Ìºï¿½Æ®
         /// </summary>
         event EventHandler<TestLogEventArgs> LogGenerated;
     }
@@ -57,6 +57,7 @@ namespace AutoRegressionVM.Services.TestExecution
         WaitingForBoot,
         CopyingFiles,
         ExecutingTest,
+        WaitingAfterExecution,
         CollectingResults,
         Completed,
         Failed

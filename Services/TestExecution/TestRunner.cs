@@ -11,7 +11,7 @@ using AutoRegressionVM.Services.VMware;
 namespace AutoRegressionVM.Services.TestExecution
 {
     /// <summary>
-    /// �׽�Ʈ ����� ����
+    /// 테스트 실행기 구현
     /// </summary>
     public class TestRunner : ITestRunner
     {
@@ -28,14 +28,14 @@ namespace AutoRegressionVM.Services.TestExecution
         public TestRunner(IVMwareService vmwareService, IEnumerable<VMInfo> registeredVMs)
         {
             _vmwareService = vmwareService;
-            _vmCache = registeredVMs?.ToDictionary(v => v.VmxPath, v => v) 
+            _vmCache = registeredVMs?.ToDictionary(v => v.VmxPath, v => v)
                        ?? new Dictionary<string, VMInfo>();
         }
 
         public async Task<ScenarioResult> RunScenarioAsync(TestScenario scenario)
         {
             if (_isRunning)
-                throw new InvalidOperationException("�̹� ���� ���Դϴ�.");
+                throw new InvalidOperationException("이미 실행 중입니다.");
 
             _isRunning = true;
             _cancellationTokenSource = new CancellationTokenSource();
@@ -79,26 +79,52 @@ namespace AutoRegressionVM.Services.TestExecution
 
                 var orderedSteps = scenario.Steps.OrderBy(s => s.Order).ToList();
                 int totalSteps = orderedSteps.Count;
-                int currentStep = 0;
 
-                if (scenario.MaxParallelVMs > 1)
+                // 병렬 파일 분배 모드: TestTargetFiles와 TargetVMPaths가 모두 있을 때
+                if (scenario.TestTargetFiles.Count > 0 && scenario.TargetVMPaths.Count > 0)
                 {
-                    // ���� ����
+                    Log(TestLogLevel.Info, $"파일 분배 병렬 모드: {scenario.TestTargetFiles.Count}개 파일, {scenario.TargetVMPaths.Count}개 VM");
+                    await RunScenarioParallelAsync(scenario, orderedSteps, result);
+                }
+                else if (scenario.MaxParallelVMs > 1)
+                {
+                    // 기존 병렬 실행
+                    Log(TestLogLevel.Info, $"병렬 실행 모드 (최대 {scenario.MaxParallelVMs}개 VM)");
                     await RunStepsParallelAsync(orderedSteps, scenario.MaxParallelVMs, result, scenario.ContinueOnFailure);
                 }
                 else
                 {
-                    // ���� ����
+                    // 순차 실행
+                    Log(TestLogLevel.Info, "순차 실행 모드");
+                    int currentStep = 0;
                     foreach (var step in orderedSteps)
                     {
                         if (_cancellationTokenSource.Token.IsCancellationRequested)
                         {
-                            Log(TestLogLevel.Warning, "����ڿ� ���� ��ҵ�");
+                            Log(TestLogLevel.Warning, "사용자에 의해 취소됨");
                             break;
                         }
 
                         currentStep++;
-                        ReportProgress(currentStep, totalSteps, step.Name, GetVMName(step.TargetVmxPath), TestProgressPhase.Initializing);
+                        var vmName = GetVMName(step.TargetVmxPath);
+                        ReportProgress(currentStep, totalSteps, step.Name, vmName, TestProgressPhase.Initializing);
+
+                        // 조건 평가
+                        if (!EvaluateStepCondition(step, result.TestResults))
+                        {
+                            Log(TestLogLevel.Info, $"[{vmName}] 스텝 '{step.Name}' 조건 미충족으로 건너뜀");
+                            var skipped = new TestResult
+                            {
+                                TestStepId = step.Id,
+                                TestStepName = step.Name,
+                                VMName = vmName,
+                                StartTime = DateTime.Now,
+                                EndTime = DateTime.Now,
+                                Status = TestResultStatus.Skipped
+                            };
+                            result.TestResults.Add(skipped);
+                            continue;
+                        }
 
                         var vm = GetVMInfo(step.TargetVmxPath);
                         var stepResult = await RunStepAsync(step, vm);
@@ -106,7 +132,7 @@ namespace AutoRegressionVM.Services.TestExecution
 
                         if (stepResult.Status == TestResultStatus.Failed && !scenario.ContinueOnFailure)
                         {
-                            Log(TestLogLevel.Error, $"�׽�Ʈ ���з� �ó����� �ߴ�: {step.Name}");
+                            Log(TestLogLevel.Error, $"테스트 실패로 시나리오 중단: {step.Name}");
                             break;
                         }
                     }
@@ -166,6 +192,132 @@ namespace AutoRegressionVM.Services.TestExecution
             return result;
         }
 
+        /// <summary>
+        /// 파일 분배 병렬 실행: 각 TestTargetFile을 VM에 라운드로빈으로 할당하여 병렬 실행
+        /// </summary>
+        private async Task RunScenarioParallelAsync(TestScenario scenario, List<TestStep> orderedSteps, ScenarioResult result)
+        {
+            var targetFiles = scenario.TestTargetFiles;
+            var vmPaths = scenario.TargetVMPaths;
+            var semaphore = new SemaphoreSlim(scenario.MaxParallelVMs > 0 ? scenario.MaxParallelVMs : 1);
+            var tasks = new List<Task>();
+
+            for (int i = 0; i < targetFiles.Count; i++)
+            {
+                if (_cancellationTokenSource.Token.IsCancellationRequested)
+                    break;
+
+                var targetFile = targetFiles[i];
+                var vmxPath = vmPaths[i % vmPaths.Count];
+                var vm = GetVMInfo(vmxPath);
+                var fileIndex = i;
+
+                await semaphore.WaitAsync(_cancellationTokenSource.Token);
+
+                var task = Task.Run(async () =>
+                {
+                    try
+                    {
+                        Log(TestLogLevel.Info, $"[{vm.Name ?? vmxPath}] 파일 배정: {targetFile.HostFilePath} (파일 #{fileIndex + 1})");
+
+                        foreach (var step in orderedSteps)
+                        {
+                            if (_cancellationTokenSource.Token.IsCancellationRequested)
+                                break;
+
+                            // 조건 평가 (현재 VM의 결과만 참조)
+                            List<TestResult> currentVmResults;
+                            lock (result.TestResults)
+                            {
+                                currentVmResults = result.TestResults
+                                    .Where(r => r.VMName == (vm.Name ?? Path.GetFileNameWithoutExtension(vmxPath)))
+                                    .ToList();
+                            }
+
+                            if (!EvaluateStepCondition(step, currentVmResults))
+                            {
+                                Log(TestLogLevel.Info, $"[{vm.Name}] 스텝 '{step.Name}' 조건 미충족으로 건너뜀");
+                                var skipped = new TestResult
+                                {
+                                    TestStepId = step.Id,
+                                    TestStepName = step.Name,
+                                    VMName = vm.Name ?? Path.GetFileNameWithoutExtension(vmxPath),
+                                    StartTime = DateTime.Now,
+                                    EndTime = DateTime.Now,
+                                    Status = TestResultStatus.Skipped
+                                };
+                                lock (result.TestResults)
+                                {
+                                    result.TestResults.Add(skipped);
+                                }
+                                continue;
+                            }
+
+                            // 스텝 복제 후 대상 VM 경로 및 배정 파일 주입
+                            var stepForVm = CloneStepWithTargetFile(step, vmxPath, targetFile);
+                            var stepResult = await RunStepAsync(stepForVm, vm);
+
+                            lock (result.TestResults)
+                            {
+                                result.TestResults.Add(stepResult);
+                            }
+
+                            if (stepResult.Status == TestResultStatus.Failed && !scenario.ContinueOnFailure)
+                            {
+                                Log(TestLogLevel.Error, $"[{vm.Name}] 테스트 실패로 해당 VM 실행 중단: {step.Name}");
+                                break;
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        semaphore.Release();
+                    }
+                }, _cancellationTokenSource.Token);
+
+                tasks.Add(task);
+            }
+
+            await Task.WhenAll(tasks);
+        }
+
+        /// <summary>
+        /// 스텝을 복제하여 대상 VM과 배정 파일을 주입한다.
+        /// 배정 파일은 기존 FilesToCopyToVM 앞에 삽입된다.
+        /// </summary>
+        private TestStep CloneStepWithTargetFile(TestStep original, string vmxPath, TestTargetFile targetFile)
+        {
+            var cloned = new TestStep
+            {
+                Id = original.Id,
+                Name = original.Name,
+                Description = original.Description,
+                Order = original.Order,
+                TargetVmxPath = vmxPath,
+                SnapshotName = original.SnapshotName,
+                Execution = original.Execution,
+                WaitAfterExecution = original.WaitAfterExecution,
+                SuccessCriteria = original.SuccessCriteria,
+                ForceNetworkDisconnect = original.ForceNetworkDisconnect,
+                CaptureScreenshots = original.CaptureScreenshots,
+                ScreenshotIntervalSeconds = original.ScreenshotIntervalSeconds,
+                ForceSnapshotRevertAfter = original.ForceSnapshotRevertAfter,
+                Condition = original.Condition,
+                ResultFilesToCollect = original.ResultFilesToCollect
+            };
+
+            // 배정 파일을 맨 앞에 추가, 그 뒤에 기존 파일들
+            cloned.FilesToCopyToVM = new List<FileCopyInfo>();
+            cloned.FilesToCopyToVM.Add(new FileCopyInfo
+            {
+                SourcePath = targetFile.HostFilePath,
+                DestinationPath = targetFile.VMDestinationPath
+            });
+            cloned.FilesToCopyToVM.AddRange(original.FilesToCopyToVM);
+
+            return cloned;
+        }
+
         private async Task RunStepsParallelAsync(List<TestStep> steps, int maxParallel, ScenarioResult result, bool continueOnFailure)
         {
             var semaphore = new SemaphoreSlim(maxParallel);
@@ -204,6 +356,7 @@ namespace AutoRegressionVM.Services.TestExecution
 
         public async Task<TestResult> RunStepAsync(TestStep step, VMInfo vm)
         {
+            var stopwatch = Stopwatch.StartNew();
             var result = new TestResult
             {
                 TestStepId = step.Id,
@@ -219,43 +372,44 @@ namespace AutoRegressionVM.Services.TestExecution
                 var username = vm?.GuestUsername ?? "Administrator";
                 var password = vm?.GuestPassword ?? "";
 
-                // 1. ������ �ѹ�
+                // 1. 스냅샷 복원
                 ReportProgress(0, 1, step.Name, result.VMName, TestProgressPhase.RevertingSnapshot);
-                Log(TestLogLevel.Info, $"[{result.VMName}] ������ �ѹ�: {step.SnapshotName}");
+                Log(TestLogLevel.Info, $"[{result.VMName}] 스냅샷 복원: {step.SnapshotName}");
 
                 if (!await _vmwareService.RevertToSnapshotAsync(vmxPath, step.SnapshotName))
                 {
-                    throw new Exception($"������ �ѹ� ����: {step.SnapshotName}");
+                    throw new Exception($"스냅샷 복원 실패: {step.SnapshotName}");
                 }
 
-                // 2. VM ���� ���
+                // 2. VM 부팅 대기
                 ReportProgress(0, 1, step.Name, result.VMName, TestProgressPhase.WaitingForBoot);
-                Log(TestLogLevel.Info, $"[{result.VMName}] VM ���� ��� ��...");
+                Log(TestLogLevel.Info, $"[{result.VMName}] VM 부팅 대기 중...");
 
                 if (!await _vmwareService.PowerOnAsync(vmxPath))
                 {
-                    throw new Exception("VM ���� �ѱ� ����");
+                    throw new Exception("VM 전원 켜기 실패");
                 }
 
                 if (!await _vmwareService.WaitForToolsAsync(vmxPath, 300))
                 {
-                    throw new Exception("VMware Tools ���� ��� �ð� �ʰ�");
+                    throw new Exception("VMware Tools 준비 대기 시간 초과");
                 }
 
-                // 3. Guest �α���
-                Log(TestLogLevel.Info, $"[{result.VMName}] Guest �α���: {username}");
+                // 3. Guest 로그인
+                Log(TestLogLevel.Info, $"[{result.VMName}] Guest 로그인: {username}");
                 if (!await _vmwareService.LoginToGuestAsync(vmxPath, username, password))
                 {
-                    throw new Exception("Guest OS �α��� ����");
+                    throw new Exception("Guest OS 로그인 실패");
                 }
 
-                // 4. ���� ���� (ȣ��Ʈ �� VM)
+                // 4. 파일 복사 (호스트 → VM)
                 ReportProgress(0, 1, step.Name, result.VMName, TestProgressPhase.CopyingFiles);
+                Log(TestLogLevel.Info, $"[{result.VMName}] 파일 복사 시작 ({step.FilesToCopyToVM.Count}개)");
                 foreach (var file in step.FilesToCopyToVM)
                 {
-                    Log(TestLogLevel.Debug, $"[{result.VMName}] ���� ����: {file.SourcePath} �� {file.DestinationPath}");
+                    Log(TestLogLevel.Debug, $"[{result.VMName}] 파일 복사: {file.SourcePath} → {file.DestinationPath}");
 
-                    // ��� ���丮 ����
+                    // 대상 디렉토리 생성
                     var guestDir = Path.GetDirectoryName(file.DestinationPath);
                     if (!string.IsNullOrEmpty(guestDir))
                     {
@@ -264,13 +418,13 @@ namespace AutoRegressionVM.Services.TestExecution
 
                     if (!await _vmwareService.CopyFileToGuestAsync(vmxPath, file.SourcePath, file.DestinationPath))
                     {
-                        throw new Exception($"���� ���� ����: {file.SourcePath}");
+                        throw new Exception($"파일 복사 실패: {file.SourcePath}");
                     }
                 }
 
-                // 5. �׽�Ʈ ����
+                // 5. 테스트 실행
                 ReportProgress(0, 1, step.Name, result.VMName, TestProgressPhase.ExecutingTest);
-                Log(TestLogLevel.Info, $"[{result.VMName}] �׽�Ʈ ����: {step.Execution.ExecutablePath}");
+                Log(TestLogLevel.Info, $"[{result.VMName}] 테스트 실행: {step.Execution.ExecutablePath}");
 
                 GuestProcessResult execResult;
                 if (step.Execution.Type == ExecutionType.Script)
@@ -298,8 +452,32 @@ namespace AutoRegressionVM.Services.TestExecution
                     result.ErrorMessage = execResult.ErrorMessage ?? execResult.StandardError;
                 }
 
-                // 6. ��� ���� ����
+                Log(TestLogLevel.Debug, $"[{result.VMName}] 실행 완료: Exit Code={execResult.ExitCode}, 경과={stopwatch.Elapsed:hh\\:mm\\:ss}");
+
+                // 5.5. 실행 후 대기
+                if (step.WaitAfterExecution != null && step.WaitAfterExecution.HasWait)
+                {
+                    var waitTime = step.WaitAfterExecution.ToTimeSpan();
+                    Log(TestLogLevel.Info, $"[{result.VMName}] 실행 후 대기: {step.WaitAfterExecution}");
+                    ReportProgress(0, 1, step.Name, result.VMName, TestProgressPhase.WaitingAfterExecution);
+
+                    var elapsed = TimeSpan.Zero;
+                    var interval = TimeSpan.FromSeconds(10);
+                    while (elapsed < waitTime)
+                    {
+                        if (_cancellationTokenSource.Token.IsCancellationRequested) break;
+                        var remaining = waitTime - elapsed;
+                        var sleepTime = remaining < interval ? remaining : interval;
+                        await Task.Delay(sleepTime, _cancellationTokenSource.Token);
+                        elapsed += sleepTime;
+                        Log(TestLogLevel.Debug, $"[{result.VMName}] 대기 중... {elapsed:hh\\:mm\\:ss} / {waitTime:hh\\:mm\\:ss}");
+                    }
+                    Log(TestLogLevel.Info, $"[{result.VMName}] 대기 완료");
+                }
+
+                // 6. 결과 파일 수집
                 ReportProgress(0, 1, step.Name, result.VMName, TestProgressPhase.CollectingResults);
+                Log(TestLogLevel.Info, $"[{result.VMName}] 결과 파일 수집 ({step.ResultFilesToCollect.Count}개)");
                 foreach (var file in step.ResultFilesToCollect)
                 {
                     var hostPath = file.DestinationPath
@@ -308,7 +486,7 @@ namespace AutoRegressionVM.Services.TestExecution
                         .Replace("{StepName}", step.Name)
                         .Replace("{Timestamp}", DateTime.Now.ToString("yyyyMMdd_HHmmss"));
 
-                    Log(TestLogLevel.Debug, $"[{result.VMName}] ��� ����: {file.SourcePath} �� {hostPath}");
+                    Log(TestLogLevel.Debug, $"[{result.VMName}] 결과 수집: {file.SourcePath} → {hostPath}");
 
                     if (await _vmwareService.CopyFileFromGuestAsync(vmxPath, file.SourcePath, hostPath))
                     {
@@ -316,39 +494,40 @@ namespace AutoRegressionVM.Services.TestExecution
                     }
                 }
 
-                // 7. ��ũ���� ĸó (�ɼ�)
+                // 7. 스크린샷 캡처 (옵션)
                 if (step.CaptureScreenshots)
                 {
                     var screenshotPath = Path.Combine(GetResultDirectory(step), $"{result.VMName}_{step.Name}_final.png");
+                    Log(TestLogLevel.Debug, $"[{result.VMName}] 스크린샷 캡처: {screenshotPath}");
                     if (await _vmwareService.CaptureScreenshotAsync(vmxPath, screenshotPath))
                     {
                         result.ScreenshotPaths.Add(screenshotPath);
                     }
                 }
 
-                // 8. ���� ���� �Ǵ�
-                result.Status = EvaluateSuccess(step.SuccessCriteria, result) 
-                    ? TestResultStatus.Passed 
+                // 8. 성공 여부 판단
+                result.Status = EvaluateSuccess(step.SuccessCriteria, result)
+                    ? TestResultStatus.Passed
                     : TestResultStatus.Failed;
 
-                // 9. ������ �ѹ� (�Ǽ��ڵ� �׽�Ʈ�� - �Ϸ� �� ������ �ѹ�)
+                // 9. 스냅샷 복원 (비파괴적 테스트용 - 완료 후 스냅샷 복원)
                 if (step.ForceSnapshotRevertAfter)
                 {
-                    Log(TestLogLevel.Info, $"[{result.VMName}] �Ϸ� �� ������ �ѹ�");
+                    Log(TestLogLevel.Info, $"[{result.VMName}] 완료 후 스냅샷 복원");
                     await _vmwareService.RevertToSnapshotAsync(vmxPath, step.SnapshotName);
                 }
 
-                ReportProgress(0, 1, step.Name, result.VMName, 
+                ReportProgress(0, 1, step.Name, result.VMName,
                     result.Status == TestResultStatus.Passed ? TestProgressPhase.Completed : TestProgressPhase.Failed);
 
                 Log(result.Status == TestResultStatus.Passed ? TestLogLevel.Info : TestLogLevel.Error,
-                    $"[{result.VMName}] {step.Name}: {result.Status}");
+                    $"[{result.VMName}] {step.Name}: {result.Status} (총 소요={stopwatch.Elapsed:hh\\:mm\\:ss})");
             }
             catch (Exception ex)
             {
                 result.Status = TestResultStatus.Error;
                 result.ErrorMessage = ex.Message;
-                Log(TestLogLevel.Error, $"[{result.VMName}] ����: {ex.Message}");
+                Log(TestLogLevel.Error, $"[{result.VMName}] 오류: {ex.Message}");
             }
             finally
             {
@@ -358,25 +537,77 @@ namespace AutoRegressionVM.Services.TestExecution
             return result;
         }
 
+        /// <summary>
+        /// 스텝 실행 조건 평가
+        /// </summary>
+        private bool EvaluateStepCondition(TestStep step, List<TestResult> previousResults)
+        {
+            if (step.Condition == null)
+                return true;
+
+            switch (step.Condition.Type)
+            {
+                case ConditionType.Always:
+                    return true;
+
+                case ConditionType.PreviousStepPassed:
+                    if (previousResults.Count == 0) return true;
+                    return previousResults[previousResults.Count - 1].Status == TestResultStatus.Passed;
+
+                case ConditionType.PreviousStepFailed:
+                    if (previousResults.Count == 0) return false;
+                    return previousResults[previousResults.Count - 1].Status == TestResultStatus.Failed;
+
+                case ConditionType.SpecificStepResult:
+                {
+                    var refId = step.Condition.ReferenceStepId;
+                    if (string.IsNullOrEmpty(refId)) return true;
+                    var refResult = previousResults.FirstOrDefault(r => r.TestStepId == refId);
+                    if (refResult == null) return false;
+                    switch (step.Condition.ExpectedResult)
+                    {
+                        case ExpectedResult.Passed:
+                            return refResult.Status == TestResultStatus.Passed;
+                        case ExpectedResult.Failed:
+                            return refResult.Status == TestResultStatus.Failed;
+                        case ExpectedResult.Any:
+                            return true;
+                        default:
+                            return true;
+                    }
+                }
+
+                case ConditionType.AllPreviousPassed:
+                    if (previousResults.Count == 0) return true;
+                    return previousResults.All(r => r.Status == TestResultStatus.Passed);
+
+                case ConditionType.AnyPreviousFailed:
+                    return previousResults.Any(r => r.Status == TestResultStatus.Failed);
+
+                default:
+                    return true;
+            }
+        }
+
         private bool EvaluateSuccess(SuccessCriteria criteria, TestResult result)
         {
             if (criteria == null) return true;
 
-            // Exit Code üũ
+            // Exit Code 체크
             if (criteria.ExpectedExitCode.HasValue)
             {
                 if (result.ExitCode != criteria.ExpectedExitCode.Value)
                     return false;
             }
 
-            // ���� ���ڿ� üũ
+            // 포함 문자열 체크
             if (!string.IsNullOrEmpty(criteria.ContainsText))
             {
                 if (string.IsNullOrEmpty(result.Output) || !result.Output.Contains(criteria.ContainsText))
                     return false;
             }
 
-            // ���� ���ڿ� üũ
+            // 미포함 문자열 체크
             if (!string.IsNullOrEmpty(criteria.NotContainsText))
             {
                 if (!string.IsNullOrEmpty(result.Output) && result.Output.Contains(criteria.NotContainsText))
@@ -414,7 +645,7 @@ namespace AutoRegressionVM.Services.TestExecution
         public void Cancel()
         {
             _cancellationTokenSource?.Cancel();
-            Log(TestLogLevel.Warning, "�׽�Ʈ ��� ��û��");
+            Log(TestLogLevel.Warning, "테스트 취소 요청됨");
         }
 
         private void ReportProgress(int current, int total, string stepName, string vmName, TestProgressPhase phase)
