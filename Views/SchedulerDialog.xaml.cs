@@ -146,7 +146,7 @@ namespace AutoRegressionVM.Views
 
         private void UpdateVisibility()
         {
-            if (cboType == null) return;
+            if (cboType == null || lblDayOfWeek == null) return;
 
             var type = (ScheduleType)cboType.SelectedIndex;
 
