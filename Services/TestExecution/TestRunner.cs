@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using AutoRegressionVM.Models;
 using AutoRegressionVM.Services.VMware;
+using AutoRegressionVM.Services;
 
 namespace AutoRegressionVM.Services.TestExecution
 {
@@ -17,6 +18,7 @@ namespace AutoRegressionVM.Services.TestExecution
     {
         private readonly IVMwareService _vmwareService;
         private readonly Dictionary<string, VMInfo> _vmCache;
+        private readonly MacroService _macroService = new MacroService();
         private CancellationTokenSource _cancellationTokenSource;
         private bool _isRunning;
 
@@ -381,11 +383,18 @@ namespace AutoRegressionVM.Services.TestExecution
                 // 1. 스냅샷 복원
                 var myStep = System.Threading.Interlocked.Increment(ref _completedStepCount);
                 ReportProgress(myStep, _totalStepCount, step.Name, result.VMName, TestProgressPhase.RevertingSnapshot);
-                Log(TestLogLevel.Info, $"[{result.VMName}] 스냅샷 복원: {step.SnapshotName}");
 
-                if (!await _vmwareService.RevertToSnapshotAsync(vmxPath, step.SnapshotName))
+                if (!string.IsNullOrWhiteSpace(step.SnapshotName))
                 {
-                    throw new Exception($"스냅샷 복원 실패: {step.SnapshotName}");
+                    Log(TestLogLevel.Info, $"[{result.VMName}] 스냅샷 복원: {step.SnapshotName}");
+                    if (!await _vmwareService.RevertToSnapshotAsync(vmxPath, step.SnapshotName))
+                    {
+                        throw new Exception($"스냅샷 복원 실패: {step.SnapshotName}");
+                    }
+                }
+                else
+                {
+                    Log(TestLogLevel.Warning, $"[{result.VMName}] 스냅샷 미지정 - 현재 상태에서 실행");
                 }
 
                 // 2. VM 부팅 대기
@@ -485,17 +494,30 @@ namespace AutoRegressionVM.Services.TestExecution
                 // 6. 결과 파일 수집
                 ReportProgress(myStep, _totalStepCount, step.Name, result.VMName, TestProgressPhase.CollectingResults);
                 Log(TestLogLevel.Info, $"[{result.VMName}] 결과 파일 수집 ({step.ResultFilesToCollect.Count}개)");
+
+                var macroContext = new MacroContext
+                {
+                    VMName = result.VMName,
+                    VMPath = vmxPath,
+                    StepName = step.Name,
+                    ScenarioName = result.TestStepName
+                };
+
                 foreach (var file in step.ResultFilesToCollect)
                 {
+                    // 기존 매크로와 MacroService 매크로 모두 지원
                     var hostPath = file.DestinationPath
                         .Replace("{ResultDir}", GetResultDirectory(step))
                         .Replace("{VMName}", result.VMName)
                         .Replace("{StepName}", step.Name)
                         .Replace("{Timestamp}", DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+                    hostPath = _macroService.ExpandMacros(hostPath, macroContext);
 
-                    Log(TestLogLevel.Debug, $"[{result.VMName}] 결과 수집: {file.SourcePath} → {hostPath}");
+                    var guestPath = _macroService.ExpandMacros(file.SourcePath, macroContext);
 
-                    if (await _vmwareService.CopyFileFromGuestAsync(vmxPath, file.SourcePath, hostPath))
+                    Log(TestLogLevel.Debug, $"[{result.VMName}] 결과 수집: {guestPath} → {hostPath}");
+
+                    if (await _vmwareService.CopyFileFromGuestAsync(vmxPath, guestPath, hostPath))
                     {
                         result.CollectedFilePaths.Add(hostPath);
                     }
