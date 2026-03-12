@@ -1,15 +1,34 @@
+using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using AutoRegressionVM.Models;
 
 namespace AutoRegressionVM.Services.Notification
 {
     /// <summary>
-    /// æÀ∏≤ º≠∫ÒΩ∫ ∆—≈‰∏Æ π◊ ∞¸∏Æ¿⁄
+    /// ÏïåÎ¶º ÏÑúÎπÑÏä§ Ìå©ÌÜ†Î¶¨ Î∞è Îß§ÎãàÏ†Ä
+    /// OCP: ÏÉà ÏïåÎ¶º Ïú†Ìòï Ï∂îÍ∞Ä Ïãú RegisterFactoryÎßå Ìò∏Ï∂úÌïòÎ©¥ Îê®
     /// </summary>
     public class NotificationManager
     {
         private readonly NotificationSettings _settings;
         private INotificationService _service;
+
+        private static readonly Dictionary<NotificationType, Func<NotificationSettings, INotificationService>> _factories
+            = new Dictionary<NotificationType, Func<NotificationSettings, INotificationService>>
+            {
+                { NotificationType.Slack, s => new SlackNotificationService(s.SlackWebhookUrl) },
+                { NotificationType.Teams, s => new TeamsNotificationService(s.TeamsWebhookUrl) },
+                { NotificationType.Email, s => new EmailNotificationService(s.SmtpServer, s.SmtpPort, s.SmtpUsername, s.SmtpPassword, s.EmailTo) }
+            };
+
+        /// <summary>
+        /// ÏÉà ÏïåÎ¶º Ïú†Ìòï Ìå©ÌÜ†Î¶¨ Îì±Î°ù (OCP ÌôïÏû•Ï†ê)
+        /// </summary>
+        public static void RegisterFactory(NotificationType type, Func<NotificationSettings, INotificationService> factory)
+        {
+            _factories[type] = factory;
+        }
 
         public NotificationManager(NotificationSettings settings)
         {
@@ -25,36 +44,20 @@ namespace AutoRegressionVM.Services.Notification
                 return;
             }
 
-            switch (_settings.Type)
+            if (_factories.TryGetValue(_settings.Type, out var factory))
             {
-                case NotificationType.Slack:
-                    _service = new SlackNotificationService(_settings.SlackWebhookUrl);
-                    break;
-
-                case NotificationType.Teams:
-                    _service = new TeamsNotificationService(_settings.TeamsWebhookUrl);
-                    break;
-
-                case NotificationType.Email:
-                    _service = new EmailNotificationService(
-                        _settings.SmtpServer,
-                        _settings.SmtpPort,
-                        _settings.SmtpUsername,
-                        _settings.SmtpPassword,
-                        _settings.EmailTo);
-                    break;
-
-                default:
-                    _service = null;
-                    break;
+                _service = factory(_settings);
+            }
+            else
+            {
+                _service = null;
             }
         }
 
         public void UpdateSettings(NotificationSettings settings)
         {
             if (settings == null) return;
-            
-            // º≥¡§ ∫πªÁ
+
             _settings.Enabled = settings.Enabled;
             _settings.Type = settings.Type;
             _settings.SlackWebhookUrl = settings.SlackWebhookUrl;
@@ -68,7 +71,7 @@ namespace AutoRegressionVM.Services.Notification
             _settings.NotifyOnFailure = settings.NotifyOnFailure;
             _settings.NotifyOnStart = settings.NotifyOnStart;
             _settings.NotifyOnError = settings.NotifyOnError;
-            
+
             InitializeService();
         }
 
