@@ -13,6 +13,12 @@ using Microsoft.Win32;
 
 namespace AutoRegressionVM.Views
 {
+    public class VMSelectionItem
+    {
+        public VMInfo VM { get; set; }
+        public bool IsSelected { get; set; }
+    }
+
     public partial class ScenarioEditorDialog : Window
     {
         public TestScenario Result { get; private set; }
@@ -21,6 +27,10 @@ namespace AutoRegressionVM.Views
         private readonly ObservableCollection<TestStep> _steps = new ObservableCollection<TestStep>();
         private readonly IVMwareService _vmwareService;
         private readonly ObservableCollection<Snapshot> _snapshots = new ObservableCollection<Snapshot>();
+        private readonly ObservableCollection<VMSelectionItem> _vmSelectionItems = new ObservableCollection<VMSelectionItem>();
+        private readonly ObservableCollection<TestTargetFile> _testTargetFiles = new ObservableCollection<TestTargetFile>();
+        private readonly ObservableCollection<FileCopyInfo> _filesToVM = new ObservableCollection<FileCopyInfo>();
+        private readonly ObservableCollection<FileCopyInfo> _resultFiles = new ObservableCollection<FileCopyInfo>();
         private TestStep _currentStep;
         private bool _isEditing;
         private string _existingId;
@@ -38,6 +48,14 @@ namespace AutoRegressionVM.Views
             cboTargetVM.ItemsSource = _availableVMs;
             cboSnapshot.ItemsSource = _snapshots;
             lstSteps.ItemsSource = _steps;
+
+            // VM 선택 목록 초기화
+            foreach (var vm in _availableVMs)
+            {
+                _vmSelectionItems.Add(new VMSelectionItem { VM = vm, IsSelected = false });
+            }
+            lstTargetVMs.ItemsSource = _vmSelectionItems;
+            lstTestTargetFiles.ItemsSource = _testTargetFiles;
 
             if (existingScenario != null)
             {
@@ -63,6 +81,24 @@ namespace AutoRegressionVM.Views
             // 이벤트 설정 로드
             LoadPreEventToUI(scenario.PreTestEvent);
             LoadPostEventToUI(scenario.PostTestEvent);
+
+            // 대상 VM 선택 복원
+            if (scenario.TargetVMPaths != null)
+            {
+                foreach (var item in _vmSelectionItems)
+                {
+                    item.IsSelected = scenario.TargetVMPaths.Contains(item.VM.VmxPath);
+                }
+            }
+
+            // 테스트 대상 파일 로드
+            if (scenario.TestTargetFiles != null)
+            {
+                foreach (var file in scenario.TestTargetFiles)
+                {
+                    _testTargetFiles.Add(file);
+                }
+            }
         }
 
         private void LoadPreEventToUI(ScenarioEvent evt)
@@ -190,8 +226,15 @@ namespace AutoRegressionVM.Views
                 _isLoadingStep = false;
             }
 
-            dgFilesToVM.ItemsSource = new ObservableCollection<FileCopyInfo>(step.FilesToCopyToVM ?? new List<FileCopyInfo>());
-            dgResultFiles.ItemsSource = new ObservableCollection<FileCopyInfo>(step.ResultFilesToCollect ?? new List<FileCopyInfo>());
+            _filesToVM.Clear();
+            foreach (var f in step.FilesToCopyToVM ?? new List<FileCopyInfo>())
+                _filesToVM.Add(f);
+            lvFilesToVM.ItemsSource = _filesToVM;
+
+            _resultFiles.Clear();
+            foreach (var f in step.ResultFilesToCollect ?? new List<FileCopyInfo>())
+                _resultFiles.Add(f);
+            lvResultFiles.ItemsSource = _resultFiles;
 
             if (step.Execution != null)
             {
@@ -199,6 +242,20 @@ namespace AutoRegressionVM.Views
                 txtExecPath.Text = step.Execution.ExecutablePath;
                 txtExecArgs.Text = step.Execution.Arguments;
                 txtTimeout.Text = step.Execution.TimeoutSeconds.ToString();
+            }
+
+            // 대기 시간 로드
+            if (step.WaitAfterExecution != null)
+            {
+                txtWaitHours.Text = step.WaitAfterExecution.Hours.ToString();
+                txtWaitMinutes.Text = step.WaitAfterExecution.Minutes.ToString();
+                txtWaitSeconds.Text = step.WaitAfterExecution.Seconds.ToString();
+            }
+            else
+            {
+                txtWaitHours.Text = "0";
+                txtWaitMinutes.Text = "0";
+                txtWaitSeconds.Text = "0";
             }
 
             chkForceNetworkDisconnect.IsChecked = step.ForceNetworkDisconnect;
@@ -247,11 +304,16 @@ namespace AutoRegressionVM.Views
             var selectedVM = cboTargetVM.SelectedItem as VMInfo;
             _currentStep.TargetVmxPath = selectedVM?.VmxPath;
 
-            _currentStep.FilesToCopyToVM = (dgFilesToVM.ItemsSource as ObservableCollection<FileCopyInfo>)?
-                .Where(f => !string.IsNullOrWhiteSpace(f.SourcePath)).ToList() ?? new List<FileCopyInfo>();
+            _currentStep.FilesToCopyToVM = _filesToVM.Where(f => !string.IsNullOrWhiteSpace(f.SourcePath)).ToList();
+            _currentStep.ResultFilesToCollect = _resultFiles.Where(f => !string.IsNullOrWhiteSpace(f.SourcePath)).ToList();
 
-            _currentStep.ResultFilesToCollect = (dgResultFiles.ItemsSource as ObservableCollection<FileCopyInfo>)?
-                .Where(f => !string.IsNullOrWhiteSpace(f.SourcePath)).ToList() ?? new List<FileCopyInfo>();
+            // 대기 시간 저장
+            _currentStep.WaitAfterExecution = new WaitTime
+            {
+                Hours = int.TryParse(txtWaitHours.Text, out var h) ? h : 0,
+                Minutes = int.TryParse(txtWaitMinutes.Text, out var m) ? m : 0,
+                Seconds = int.TryParse(txtWaitSeconds.Text, out var s) ? s : 0
+            };
 
             _currentStep.Execution = new ExecutionInfo
             {
@@ -353,7 +415,9 @@ namespace AutoRegressionVM.Views
                 ContinueOnFailure = chkContinueOnFailure.IsChecked ?? true,
                 Steps = _steps.ToList(),
                 PreTestEvent = GetPreEventFromUI(),
-                PostTestEvent = GetPostEventFromUI()
+                PostTestEvent = GetPostEventFromUI(),
+                TargetVMPaths = _vmSelectionItems.Where(v => v.IsSelected).Select(v => v.VM.VmxPath).ToList(),
+                TestTargetFiles = _testTargetFiles.ToList()
             };
 
             if (_isEditing)
@@ -455,16 +519,9 @@ namespace AutoRegressionVM.Views
 
             if (dialog.ShowDialog() == true)
             {
-                var files = dgFilesToVM.ItemsSource as ObservableCollection<FileCopyInfo>;
-                if (files == null)
-                {
-                    files = new ObservableCollection<FileCopyInfo>();
-                    dgFilesToVM.ItemsSource = files;
-                }
-
                 foreach (var file in dialog.FileNames)
                 {
-                    files.Add(new FileCopyInfo
+                    _filesToVM.Add(new FileCopyInfo
                     {
                         SourcePath = file,
                         DestinationPath = $"C:\\Test\\{Path.GetFileName(file)}"
@@ -482,19 +539,39 @@ namespace AutoRegressionVM.Views
 
             if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
-                var files = dgFilesToVM.ItemsSource as ObservableCollection<FileCopyInfo>;
-                if (files == null)
-                {
-                    files = new ObservableCollection<FileCopyInfo>();
-                    dgFilesToVM.ItemsSource = files;
-                }
-
                 var folderName = Path.GetFileName(dialog.SelectedPath);
-                files.Add(new FileCopyInfo
+                _filesToVM.Add(new FileCopyInfo
                 {
                     SourcePath = dialog.SelectedPath,
                     DestinationPath = $"C:\\Test\\{folderName}"
                 });
+            }
+        }
+
+        private void RemoveFileToVM_Click(object sender, RoutedEventArgs e)
+        {
+            var selected = lvFilesToVM.SelectedItem as FileCopyInfo;
+            if (selected != null)
+            {
+                _filesToVM.Remove(selected);
+            }
+        }
+
+        private void AddResultFile_Click(object sender, RoutedEventArgs e)
+        {
+            _resultFiles.Add(new FileCopyInfo
+            {
+                SourcePath = "C:\\Test\\result.txt",
+                DestinationPath = "{ResultDir}\\{VMName}_{StepName}_{Timestamp}"
+            });
+        }
+
+        private void RemoveResultFile_Click(object sender, RoutedEventArgs e)
+        {
+            var selected = lvResultFiles.SelectedItem as FileCopyInfo;
+            if (selected != null)
+            {
+                _resultFiles.Remove(selected);
             }
         }
 
@@ -507,19 +584,47 @@ namespace AutoRegressionVM.Views
 
             if (dialog.ShowDialog() == System.Windows.Forms.DialogResult.OK)
             {
-                var files = dgResultFiles.ItemsSource as ObservableCollection<FileCopyInfo>;
-                if (files == null)
-                {
-                    files = new ObservableCollection<FileCopyInfo>();
-                    dgResultFiles.ItemsSource = files;
-                }
-
-                // 선택한 폴더를 대상 경로로 추가 (소스 경로는 사용자가 직접 입력)
-                files.Add(new FileCopyInfo
+                _resultFiles.Add(new FileCopyInfo
                 {
                     SourcePath = "C:\\Test\\결과.txt",
                     DestinationPath = Path.Combine(dialog.SelectedPath, "{VMName}_{StepName}_{Timestamp}")
                 });
+            }
+        }
+
+        private void TargetVM_CheckChanged(object sender, RoutedEventArgs e)
+        {
+            // CheckBox state is already bound, nothing extra needed
+        }
+
+        private void AddTestTargetFile_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new OpenFileDialog
+            {
+                Title = "테스트 대상 파일 선택",
+                Multiselect = true
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                foreach (var file in dialog.FileNames)
+                {
+                    _testTargetFiles.Add(new TestTargetFile
+                    {
+                        HostFilePath = file,
+                        VMDestinationPath = $"C:\\Test\\{Path.GetFileName(file)}",
+                        Description = Path.GetFileNameWithoutExtension(file)
+                    });
+                }
+            }
+        }
+
+        private void RemoveTestTargetFile_Click(object sender, RoutedEventArgs e)
+        {
+            var selected = lstTestTargetFiles.SelectedItem as TestTargetFile;
+            if (selected != null)
+            {
+                _testTargetFiles.Remove(selected);
             }
         }
 

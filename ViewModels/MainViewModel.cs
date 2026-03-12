@@ -9,6 +9,7 @@ using System.Windows;
 using System.Windows.Input;
 using AutoRegressionVM.Helpers;
 using AutoRegressionVM.Models;
+using Newtonsoft.Json;
 using AutoRegressionVM.Services;
 using AutoRegressionVM.Services.Notification;
 using AutoRegressionVM.Services.TestExecution;
@@ -246,6 +247,22 @@ namespace AutoRegressionVM.ViewModels
                 AddLog($"시나리오 시작: {SelectedScenario.Name}");
                 StatusMessage = $"실행 중: {SelectedScenario.Name}";
 
+                // VM 실행 상태 초기화
+                VMExecutionStatuses.Clear();
+                if (SelectedScenario.TargetVMPaths != null && SelectedScenario.TargetVMPaths.Count > 0)
+                {
+                    foreach (var vmPath in SelectedScenario.TargetVMPaths)
+                    {
+                        var vmInfo = VMs.FirstOrDefault(v => v.VmxPath == vmPath);
+                        VMExecutionStatuses.Add(new VMExecutionStatus
+                        {
+                            VMName = vmInfo?.Name ?? System.IO.Path.GetFileNameWithoutExtension(vmPath),
+                            Phase = VMExecutionPhase.Idle,
+                            IsActive = true
+                        });
+                    }
+                }
+
                 // 시작 알림
                 await _notificationManager.NotifyTestStartedAsync(SelectedScenario);
 
@@ -405,8 +422,21 @@ namespace AutoRegressionVM.ViewModels
                     ForceNetworkDisconnect = s.ForceNetworkDisconnect,
                     CaptureScreenshots = s.CaptureScreenshots,
                     ScreenshotIntervalSeconds = s.ScreenshotIntervalSeconds,
-                    ForceSnapshotRevertAfter = s.ForceSnapshotRevertAfter
-                }).ToList()
+                    ForceSnapshotRevertAfter = s.ForceSnapshotRevertAfter,
+                    WaitAfterExecution = new WaitTime
+                    {
+                        Hours = s.WaitAfterExecution?.Hours ?? 0,
+                        Minutes = s.WaitAfterExecution?.Minutes ?? 0,
+                        Seconds = s.WaitAfterExecution?.Seconds ?? 0
+                    }
+                }).ToList(),
+                TestTargetFiles = SelectedScenario.TestTargetFiles?.Select(f => new TestTargetFile
+                {
+                    HostFilePath = f.HostFilePath,
+                    VMDestinationPath = f.VMDestinationPath,
+                    Description = f.Description
+                }).ToList() ?? new List<TestTargetFile>(),
+                TargetVMPaths = new List<string>(SelectedScenario.TargetVMPaths ?? new List<string>())
             };
 
             Scenarios.Add(cloned);
@@ -430,7 +460,7 @@ namespace AutoRegressionVM.ViewModels
             {
                 try
                 {
-                    var json = SimpleJson.Serialize(SelectedScenario);
+                    var json = JsonConvert.SerializeObject(SelectedScenario, Formatting.Indented);
                     File.WriteAllText(dialog.FileName, json);
                     AddLog($"시나리오 내보내기 완료: {dialog.FileName}");
                     MessageBox.Show("시나리오를 내보냈습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -459,7 +489,7 @@ namespace AutoRegressionVM.ViewModels
                     try
                     {
                         var json = File.ReadAllText(fileName);
-                        var scenario = SimpleJson.Deserialize<TestScenario>(json);
+                        var scenario = JsonConvert.DeserializeObject<TestScenario>(json);
 
                         if (scenario != null)
                         {
@@ -601,6 +631,7 @@ namespace AutoRegressionVM.ViewModels
                 case TestProgressPhase.CopyingFiles: return "파일 복사";
                 case TestProgressPhase.ExecutingTest: return "테스트 실행";
                 case TestProgressPhase.CollectingResults: return "결과 수집";
+                case TestProgressPhase.WaitingAfterExecution: return "실행 후 대기";
                 case TestProgressPhase.Completed: return "완료";
                 case TestProgressPhase.Failed: return "실패";
                 default: return phase.ToString();
