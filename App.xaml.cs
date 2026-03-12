@@ -65,7 +65,8 @@ namespace AutoRegressionVM
                 var vmwareService = new VixService(appSettings.VMwareInstallPath);
                 var notificationManager = new NotificationManager(appSettings.Notification);
 
-                var viewModel = new MainViewModel(settingsService, reportService, vmwareService, notificationManager);
+                var scenarioService = new ScenarioService(settingsService);
+                var viewModel = new MainViewModel(settingsService, scenarioService, reportService, vmwareService, notificationManager);
 
                 var mainWindow = new MainWindow();
                 mainWindow.DataContext = viewModel;

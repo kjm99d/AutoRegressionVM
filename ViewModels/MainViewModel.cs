@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
@@ -9,7 +8,6 @@ using System.Windows;
 using System.Windows.Input;
 using AutoRegressionVM.Helpers;
 using AutoRegressionVM.Models;
-using Newtonsoft.Json;
 using AutoRegressionVM.Services;
 using AutoRegressionVM.Services.Notification;
 using AutoRegressionVM.Services.TestExecution;
@@ -23,6 +21,7 @@ namespace AutoRegressionVM.ViewModels
     {
         private readonly IVMwareService _vmwareService;
         private readonly ISettingsService _settingsService;
+        private readonly IScenarioService _scenarioService;
         private readonly NotificationManager _notificationManager;
         private readonly IReportService _reportService;
         private AppSettings _appSettings;
@@ -119,10 +118,12 @@ namespace AutoRegressionVM.ViewModels
 
         #endregion
 
-        public MainViewModel(ISettingsService settingsService, IReportService reportService,
-                             IVMwareService vmwareService, NotificationManager notificationManager)
+        public MainViewModel(ISettingsService settingsService, IScenarioService scenarioService,
+                             IReportService reportService, IVMwareService vmwareService,
+                             NotificationManager notificationManager)
         {
             _settingsService = settingsService;
+            _scenarioService = scenarioService;
             _reportService = reportService;
             _appSettings = _settingsService.LoadSettings();
             _vmwareService = vmwareService;
@@ -317,7 +318,7 @@ namespace AutoRegressionVM.ViewModels
                 _settingsService.SaveResult(result);
                 _lastScenarioResult = result;
                 SelectedScenario.LastRunAt = DateTime.Now;
-                _settingsService.SaveScenario(SelectedScenario);
+                _scenarioService.Save(SelectedScenario);
 
                 // 리포트 자동 생성
                 var htmlPath = _reportService.GenerateHtmlReport(result);
@@ -365,7 +366,7 @@ namespace AutoRegressionVM.ViewModels
             {
                 Scenarios.Add(dialog.Result);
                 SelectedScenario = dialog.Result;
-                _settingsService.SaveScenario(dialog.Result);
+                _scenarioService.Save(dialog.Result);
                 AddLog($"새 시나리오 생성: {dialog.Result.Name}");
             }
         }
@@ -387,7 +388,7 @@ namespace AutoRegressionVM.ViewModels
                     Scenarios[index] = dialog.Result;
                     SelectedScenario = dialog.Result;
                 }
-                _settingsService.SaveScenario(dialog.Result);
+                _scenarioService.Save(dialog.Result);
                 AddLog($"시나리오 수정됨: {dialog.Result.Name}");
             }
         }
@@ -406,7 +407,7 @@ namespace AutoRegressionVM.ViewModels
             {
                 var scenarioToRemove = SelectedScenario;
                 Scenarios.Remove(scenarioToRemove);
-                _settingsService.DeleteScenario(scenarioToRemove);
+                _scenarioService.Delete(scenarioToRemove);
                 AddLog($"시나리오 삭제됨: {scenarioToRemove.Name}");
             }
         }
@@ -415,72 +416,10 @@ namespace AutoRegressionVM.ViewModels
         {
             if (SelectedScenario == null) return;
 
-            var cloned = new TestScenario
-            {
-                Id = Guid.NewGuid().ToString(),
-                Name = SelectedScenario.Name + " (복사본)",
-                Description = SelectedScenario.Description,
-                MaxParallelVMs = SelectedScenario.MaxParallelVMs,
-                ContinueOnFailure = SelectedScenario.ContinueOnFailure,
-                CreatedAt = DateTime.Now,
-                Steps = SelectedScenario.Steps.Select(s => new TestStep
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    Name = s.Name,
-                    Description = s.Description,
-                    Order = s.Order,
-                    TargetVmxPath = s.TargetVmxPath,
-                    SnapshotName = s.SnapshotName,
-                    FilesToCopyToVM = s.FilesToCopyToVM?.Select(f => new FileCopyInfo
-                    {
-                        SourcePath = f.SourcePath,
-                        DestinationPath = f.DestinationPath
-                    }).ToList() ?? new List<FileCopyInfo>(),
-                    ResultFilesToCollect = s.ResultFilesToCollect?.Select(f => new FileCopyInfo
-                    {
-                        SourcePath = f.SourcePath,
-                        DestinationPath = f.DestinationPath
-                    }).ToList() ?? new List<FileCopyInfo>(),
-                    Execution = new ExecutionInfo
-                    {
-                        Type = s.Execution?.Type ?? ExecutionType.Program,
-                        ExecutablePath = s.Execution?.ExecutablePath,
-                        Arguments = s.Execution?.Arguments,
-                        WorkingDirectory = s.Execution?.WorkingDirectory,
-                        TimeoutSeconds = s.Execution?.TimeoutSeconds ?? 300,
-                        WaitForExit = s.Execution?.WaitForExit ?? true
-                    },
-                    SuccessCriteria = new SuccessCriteria
-                    {
-                        ExpectedExitCode = s.SuccessCriteria?.ExpectedExitCode,
-                        ResultJsonPath = s.SuccessCriteria?.ResultJsonPath,
-                        ExpectedJsonValue = s.SuccessCriteria?.ExpectedJsonValue,
-                        ContainsText = s.SuccessCriteria?.ContainsText,
-                        NotContainsText = s.SuccessCriteria?.NotContainsText
-                    },
-                    ForceNetworkDisconnect = s.ForceNetworkDisconnect,
-                    CaptureScreenshots = s.CaptureScreenshots,
-                    ScreenshotIntervalSeconds = s.ScreenshotIntervalSeconds,
-                    ForceSnapshotRevertAfter = s.ForceSnapshotRevertAfter,
-                    WaitAfterExecution = new WaitTime
-                    {
-                        Hours = s.WaitAfterExecution?.Hours ?? 0,
-                        Minutes = s.WaitAfterExecution?.Minutes ?? 0,
-                        Seconds = s.WaitAfterExecution?.Seconds ?? 0
-                    }
-                }).ToList(),
-                TestTargetFiles = SelectedScenario.TestTargetFiles?.Select(f => new TestTargetFile
-                {
-                    HostFilePath = f.HostFilePath,
-                    VMDestinationPath = f.VMDestinationPath,
-                    Description = f.Description
-                }).ToList() ?? new List<TestTargetFile>(),
-                TargetVMPaths = new List<string>(SelectedScenario.TargetVMPaths ?? new List<string>())
-            };
-
+            var cloned = _scenarioService.Clone(SelectedScenario);
             Scenarios.Add(cloned);
             SelectedScenario = cloned;
-            _settingsService.SaveScenario(cloned);
+            _scenarioService.Save(cloned);
             AddLog($"시나리오 복제됨: {cloned.Name}");
         }
 
@@ -499,8 +438,7 @@ namespace AutoRegressionVM.ViewModels
             {
                 try
                 {
-                    var json = JsonConvert.SerializeObject(SelectedScenario, Formatting.Indented);
-                    File.WriteAllText(dialog.FileName, json);
+                    _scenarioService.ExportToFile(SelectedScenario, dialog.FileName);
                     AddLog($"시나리오 내보내기 완료: {dialog.FileName}");
                     MessageBox.Show("시나리오를 내보냈습니다.", "완료", MessageBoxButton.OK, MessageBoxImage.Information);
                 }
@@ -527,15 +465,10 @@ namespace AutoRegressionVM.ViewModels
                 {
                     try
                     {
-                        var json = File.ReadAllText(fileName);
-                        var scenario = JsonConvert.DeserializeObject<TestScenario>(json);
+                        var scenario = _scenarioService.ImportFromFile(fileName);
 
                         if (scenario != null)
                         {
-                            // 새 ID 부여
-                            scenario.Id = Guid.NewGuid().ToString();
-                            scenario.CreatedAt = DateTime.Now;
-
                             // 이름 중복 확인
                             var baseName = scenario.Name;
                             int counter = 1;
@@ -545,7 +478,7 @@ namespace AutoRegressionVM.ViewModels
                             }
 
                             Scenarios.Add(scenario);
-                            _settingsService.SaveScenario(scenario);
+                            _scenarioService.Save(scenario);
                             AddLog($"시나리오 가져오기 완료: {scenario.Name}");
                         }
                     }
@@ -697,7 +630,7 @@ namespace AutoRegressionVM.ViewModels
             }
 
             // 저장된 시나리오 로드
-            var scenarios = _settingsService.LoadAllScenarios();
+            var scenarios = _scenarioService.LoadAll();
             foreach (var scenario in scenarios)
             {
                 Scenarios.Add(scenario);
