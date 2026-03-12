@@ -36,6 +36,7 @@ namespace AutoRegressionVM.Services.TestExecution
 
         private int _totalStepCount;
         private int _completedStepCount;
+        private int _maxRetryCount;
 
         public async Task<ScenarioResult> RunScenarioAsync(TestScenario scenario)
         {
@@ -45,6 +46,7 @@ namespace AutoRegressionVM.Services.TestExecution
             _isRunning = true;
             _cancellationTokenSource = new CancellationTokenSource();
             _completedStepCount = 0;
+            _maxRetryCount = scenario.MaxRetryCount;
 
             var result = new ScenarioResult
             {
@@ -135,7 +137,7 @@ namespace AutoRegressionVM.Services.TestExecution
                         }
 
                         var vm = GetVMInfo(step.TargetVmxPath);
-                        var stepResult = await RunStepAsync(step, vm);
+                        var stepResult = await RunStepWithRetryAsync(step, vm);
                         result.TestResults.Add(stepResult);
 
                         if (stepResult.Status == TestResultStatus.Failed && !scenario.ContinueOnFailure)
@@ -278,7 +280,7 @@ namespace AutoRegressionVM.Services.TestExecution
 
                                 // 스텝 복제 후 대상 VM 경로 및 배정 파일 주입
                                 var stepForVm = CloneStepWithTargetFile(step, vmxPath, targetFile);
-                                var stepResult = await RunStepAsync(stepForVm, vm);
+                                var stepResult = await RunStepWithRetryAsync(stepForVm, vm);
 
                                 lock (result.TestResults)
                                 {
@@ -409,7 +411,7 @@ namespace AutoRegressionVM.Services.TestExecution
                         try
                         {
                             var vm = GetVMInfo(currentStep.TargetVmxPath);
-                            var stepResult = await RunStepAsync(currentStep, vm);
+                            var stepResult = await RunStepWithRetryAsync(currentStep, vm);
 
                             lock (result.TestResults)
                             {
@@ -479,6 +481,59 @@ namespace AutoRegressionVM.Services.TestExecution
                 }
             }
             } // end using semaphore
+        }
+
+        /// <summary>
+        /// 실패한 TC를 자동으로 재시도하는 래퍼.
+        /// 스냅샷 복원부터 전체 스텝을 다시 실행한다.
+        /// </summary>
+        private async Task<TestResult> RunStepWithRetryAsync(TestStep step, VMInfo vm)
+        {
+            var vmName = vm?.Name ?? Path.GetFileNameWithoutExtension(step.TargetVmxPath);
+            TestResult lastResult = null;
+
+            for (int attempt = 0; attempt <= _maxRetryCount; attempt++)
+            {
+                if (attempt > 0)
+                {
+                    Log(TestLogLevel.Warning, $"[{vmName}] '{step.Name}' 재시도 {attempt}/{_maxRetryCount}...");
+                    // 재시도 전 짧은 대기
+                    await Task.Delay(3000, _cancellationTokenSource.Token);
+                }
+
+                lastResult = await RunStepAsync(step, vm);
+
+                if (lastResult.Status == TestResultStatus.Passed)
+                {
+                    if (attempt > 0)
+                    {
+                        Log(TestLogLevel.Info, $"[{vmName}] '{step.Name}' 재시도 {attempt}회 만에 성공");
+                        lastResult.ErrorMessage = null; // 성공 시 이전 에러 클리어
+                    }
+                    return lastResult;
+                }
+
+                // Error 상태(인프라 문제)도 재시도
+                if (lastResult.Status == TestResultStatus.Failed || lastResult.Status == TestResultStatus.Error)
+                {
+                    if (attempt < _maxRetryCount)
+                    {
+                        Log(TestLogLevel.Warning, $"[{vmName}] '{step.Name}' 실패 (시도 {attempt + 1}/{_maxRetryCount + 1}): {lastResult.ErrorMessage ?? lastResult.Status.ToString()}");
+                    }
+                    continue;
+                }
+
+                // Skipped 등은 재시도하지 않음
+                break;
+            }
+
+            if (lastResult != null && _maxRetryCount > 0 &&
+                (lastResult.Status == TestResultStatus.Failed || lastResult.Status == TestResultStatus.Error))
+            {
+                Log(TestLogLevel.Error, $"[{vmName}] '{step.Name}' {_maxRetryCount + 1}회 시도 모두 실패");
+            }
+
+            return lastResult;
         }
 
         public async Task<TestResult> RunStepAsync(TestStep step, VMInfo vm)

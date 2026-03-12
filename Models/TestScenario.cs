@@ -30,6 +30,11 @@ namespace AutoRegressionVM.Models
         public bool ContinueOnFailure { get; set; } = true;
 
         /// <summary>
+        /// 실패한 TC 자동 재시도 횟수 (0=재시도 없음)
+        /// </summary>
+        public int MaxRetryCount { get; set; } = 1;
+
+        /// <summary>
         /// 테스트 대상 파일 목록 (VM별로 분배)
         /// 여러 파일을 미리 지정하면 각 VM에 하나씩 분배됨
         /// </summary>
