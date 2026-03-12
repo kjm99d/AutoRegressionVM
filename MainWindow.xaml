@@ -4,24 +4,35 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:AutoRegressionVM"
+        xmlns:helpers="clr-namespace:AutoRegressionVM.Helpers"
         mc:Ignorable="d"
-        Title="AutoRegressionVM - 자동 리그레션 테스트" 
+        Title="AutoRegressionVM - 자동 리그레션 테스트"
         Height="700" Width="1100"
         WindowStartupLocation="CenterScreen">
 
     <!-- DataContext is set in code-behind via dependency injection -->
 
+    <Window.InputBindings>
+        <KeyBinding Key="F5" Command="{Binding RunScenarioCommand}"/>
+        <KeyBinding Key="Escape" Command="{Binding StopCommand}"/>
+        <KeyBinding Key="E" Modifiers="Ctrl" Command="{Binding EditScenarioCommand}"/>
+        <KeyBinding Key="N" Modifiers="Ctrl" Command="{Binding NewScenarioCommand}"/>
+        <KeyBinding Key="S" Modifiers="Ctrl" Command="{Binding SaveCommand}"/>
+    </Window.InputBindings>
+
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <helpers:NullToCollapsedConverter x:Key="NullToCollapsed"/>
     </Window.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="150"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>          <!-- 0: 툴바 -->
+            <RowDefinition Height="*"/>              <!-- 1: 메인 콘텐츠 -->
+            <RowDefinition Height="Auto"/>           <!-- 2: 진행률 -->
+            <RowDefinition Height="Auto"/>           <!-- 3: GridSplitter -->
+            <RowDefinition Height="150" MinHeight="60"/> <!-- 4: 로그 -->
+            <RowDefinition Height="Auto"/>           <!-- 5: 상태 표시줄 -->
         </Grid.RowDefinitions>
 
         <!-- 상단 툴바 -->
@@ -122,9 +133,23 @@
                         </ListBox.ContextMenu>
                         <ListBox.ItemTemplate>
                             <DataTemplate>
-                                <StackPanel Margin="5">
-                                    <TextBlock Text="{Binding Name}" FontWeight="Bold"/>
-                                    <TextBlock Text="{Binding VmxPath}" FontSize="10" Foreground="Gray" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Margin="5">
+                                    <Ellipse Width="8" Height="8" Margin="0,4,8,0" VerticalAlignment="Top">
+                                        <Ellipse.Style>
+                                            <Style TargetType="Ellipse">
+                                                <Setter Property="Fill" Value="#BBBBBB"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding PowerState}" Value="PoweredOn">
+                                                        <Setter Property="Fill" Value="#4CAF50"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Ellipse.Style>
+                                    </Ellipse>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}" FontWeight="Bold"/>
+                                        <TextBlock Text="{Binding VmxPath}" FontSize="10" Foreground="Gray" TextTrimming="CharacterEllipsis" MaxWidth="200"/>
+                                    </StackPanel>
                                 </StackPanel>
                             </DataTemplate>
                         </ListBox.ItemTemplate>
@@ -273,45 +298,80 @@
 
             <!-- 오른쪽: 테스트 결과 -->
             <GroupBox Grid.Column="4" Header="테스트 결과">
-                <ListBox ItemsSource="{Binding TestResults}" Margin="5">
-                    <ListBox.ItemTemplate>
-                        <DataTemplate>
-                            <Border Padding="8" Margin="2" BorderThickness="0,0,0,1" BorderBrush="LightGray">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" FontSize="16" Margin="0,0,10,0">
-                                        <TextBlock.Style>
-                                            <Style TargetType="TextBlock">
-                                                <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding Status}" Value="Passed">
-                                                        <Setter Property="Text" Value="✅"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding Status}" Value="Failed">
-                                                        <Setter Property="Text" Value="❌"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding Status}" Value="Running">
-                                                        <Setter Property="Text" Value="🔄"/>
-                                                    </DataTrigger>
-                                                    <DataTrigger Binding="{Binding Status}" Value="Error">
-                                                        <Setter Property="Text" Value="⚠️"/>
-                                                    </DataTrigger>
-                                                </Style.Triggers>
-                                            </Style>
-                                        </TextBlock.Style>
-                                    </TextBlock>
-                                    <StackPanel Grid.Column="1">
-                                        <TextBlock Text="{Binding TestStepName}" FontWeight="SemiBold"/>
-                                        <TextBlock Text="{Binding VMName}" FontSize="11" Foreground="Gray"/>
-                                        <TextBlock Text="{Binding Duration, StringFormat='소요: {0:mm\\:ss}'}" FontSize="11" Foreground="Gray"/>
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ListBox.ItemTemplate>
-                </ListBox>
+                <Grid>
+                    <ListBox ItemsSource="{Binding TestResults}" Margin="5">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Border Padding="8" Margin="2" BorderThickness="0,0,0,1" BorderBrush="LightGray">
+                                    <Border.ToolTip>
+                                        <ToolTip MaxWidth="400">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding TestStepName}" FontWeight="Bold" Margin="0,0,0,5"/>
+                                                <TextBlock Text="{Binding ErrorMessage, StringFormat='오류: {0}'}" TextWrapping="Wrap" Foreground="#dc3545"
+                                                           Visibility="{Binding ErrorMessage, Converter={StaticResource NullToCollapsed}, FallbackValue=Collapsed}"/>
+                                                <TextBlock Text="{Binding Output, StringFormat='출력: {0}'}" TextWrapping="Wrap" MaxHeight="200"
+                                                           Visibility="{Binding Output, Converter={StaticResource NullToCollapsed}, FallbackValue=Collapsed}"/>
+                                                <TextBlock Text="{Binding ExitCode, StringFormat='Exit Code: {0}'}" Foreground="Gray"/>
+                                            </StackPanel>
+                                        </ToolTip>
+                                    </Border.ToolTip>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" FontSize="16" Margin="0,0,10,0">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding Status}" Value="Passed">
+                                                            <Setter Property="Text" Value="✅"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Status}" Value="Failed">
+                                                            <Setter Property="Text" Value="❌"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Status}" Value="Running">
+                                                            <Setter Property="Text" Value="🔄"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Status}" Value="Error">
+                                                            <Setter Property="Text" Value="⚠️"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding Status}" Value="Skipped">
+                                                            <Setter Property="Text" Value="⏭"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <StackPanel Grid.Column="1">
+                                            <TextBlock Text="{Binding TestStepName}" FontWeight="SemiBold"/>
+                                            <TextBlock Text="{Binding VMName}" FontSize="11" Foreground="Gray"/>
+                                            <TextBlock Text="{Binding Duration, StringFormat='소요: {0:mm\\:ss}'}" FontSize="11" Foreground="Gray"/>
+                                            <TextBlock Text="{Binding ErrorMessage}" FontSize="10" Foreground="#dc3545"
+                                                       TextTrimming="CharacterEllipsis" MaxWidth="250"
+                                                       Visibility="{Binding ErrorMessage, Converter={StaticResource NullToCollapsed}, FallbackValue=Collapsed}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <!-- 빈 상태 안내 -->
+                    <TextBlock Text="테스트를 실행하면&#x0a;결과가 여기에 표시됩니다"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               TextAlignment="Center" Foreground="Gray" FontSize="12">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding TestResults.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
             </GroupBox>
         </Grid>
 
@@ -330,8 +390,12 @@
                        Visibility="{Binding IsRunning, Converter={StaticResource BoolToVis}}"/>
         </Grid>
 
+        <!-- 로그 영역 크기 조절 -->
+        <GridSplitter Grid.Row="3" Height="5" HorizontalAlignment="Stretch"
+                      Background="Transparent" Cursor="SizeNS"/>
+
         <!-- 하단: 로그 -->
-        <GroupBox Grid.Row="3" Margin="10,0,10,10">
+        <GroupBox Grid.Row="4" Margin="10,0,10,10">
             <GroupBox.Header>
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="로그" VerticalAlignment="Center"/>
@@ -356,7 +420,7 @@
         </GroupBox>
 
         <!-- 상태 표시줄 -->
-        <StatusBar Grid.Row="4">
+        <StatusBar Grid.Row="5">
             <StatusBarItem>
                 <StackPanel Orientation="Horizontal">
                     <Ellipse Width="10" Height="10" Margin="0,0,5,0">
@@ -373,6 +437,18 @@
                     </Ellipse>
                     <TextBlock Text="{Binding StatusMessage}"/>
                 </StackPanel>
+            </StatusBarItem>
+            <Separator/>
+            <StatusBarItem>
+                <TextBlock Text="{Binding VMs.Count, StringFormat='VM: {0}대'}" Foreground="#666"/>
+            </StatusBarItem>
+            <Separator/>
+            <StatusBarItem>
+                <TextBlock Text="{Binding Scenarios.Count, StringFormat='시나리오: {0}개'}" Foreground="#666"/>
+            </StatusBarItem>
+            <Separator/>
+            <StatusBarItem HorizontalAlignment="Right">
+                <TextBlock Text="F5:실행  Esc:중지  Ctrl+E:편집" Foreground="#999" FontSize="10"/>
             </StatusBarItem>
         </StatusBar>
     </Grid>

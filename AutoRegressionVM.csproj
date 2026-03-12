@@ -59,6 +59,7 @@
     <Compile Include="CLI\CliOptions.cs" />
     <Compile Include="CLI\CliRunner.cs" />
     <Compile Include="CLI\CommandLineParser.cs" />
+    <Compile Include="Helpers\NullToCollapsedConverter.cs" />
     <Compile Include="Helpers\SimpleJson.cs" />
     <Compile Include="Services\Notification\EmailNotificationService.cs" />
     <Compile Include="Services\Notification\INotificationService.cs" />
