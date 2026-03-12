@@ -2,7 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Text;
-using AutoRegressionVM.Helpers;
+using Newtonsoft.Json;
 using AutoRegressionVM.Models;
 
 namespace AutoRegressionVM.Services
@@ -47,7 +47,7 @@ namespace AutoRegressionVM.Services
             var fileName = $"{SanitizeFileName(result.ScenarioName)}_{result.StartTime:yyyyMMdd_HHmmss}.json";
             var filePath = outputPath ?? Path.Combine(_reportsDirectory, fileName);
 
-            var json = SimpleJson.Serialize(result);
+            var json = JsonConvert.SerializeObject(result, Formatting.Indented);
             File.WriteAllText(filePath, json, Encoding.UTF8);
 
             return filePath;

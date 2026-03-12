@@ -1,7 +1,7 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
-using AutoRegressionVM.Helpers;
+using Newtonsoft.Json;
 using AutoRegressionVM.Models;
 using AutoRegressionVM.Services;
 using AutoRegressionVM.Services.Notification;
@@ -11,7 +11,7 @@ using AutoRegressionVM.Services.VMware;
 namespace AutoRegressionVM.CLI
 {
     /// <summary>
-    /// CLI ¸ðµå ½ÇÇà±â
+    /// CLI ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½
     /// </summary>
     public class CliRunner
     {
@@ -54,7 +54,7 @@ namespace AutoRegressionVM.CLI
 
                 if (string.IsNullOrEmpty(_options.ScenarioName))
                 {
-                    Console.WriteLine("[ERROR] ½Ã³ª¸®¿À ÀÌ¸§À» ÁöÁ¤ÇÏ¼¼¿ä. (--scenario <ÀÌ¸§>)");
+                    Console.WriteLine("[ERROR] ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ì¸ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ï¼ï¿½ï¿½ï¿½. (--scenario <ï¿½Ì¸ï¿½>)");
                     return 4;
                 }
 
@@ -82,20 +82,20 @@ namespace AutoRegressionVM.CLI
 
         private int ListScenarios()
         {
-            Console.WriteLine("[INFO] ÀúÀåµÈ ½Ã³ª¸®¿À ¸ñ·Ï:\n");
+            Console.WriteLine("[INFO] ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½:\n");
 
             var scenarios = _settingsService.LoadAllScenarios();
             if (scenarios.Count == 0)
             {
-                Console.WriteLine("  (ÀúÀåµÈ ½Ã³ª¸®¿À°¡ ¾ø½À´Ï´Ù)");
+                Console.WriteLine("  (ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ï´ï¿½)");
                 return 0;
             }
 
             foreach (var scenario in scenarios)
             {
                 Console.WriteLine($"  ? {scenario.Name}");
-                Console.WriteLine($"    ¼³¸í: {scenario.Description ?? "(¾øÀ½)"}");
-                Console.WriteLine($"    Steps: {scenario.Steps.Count}°³");
+                Console.WriteLine($"    ï¿½ï¿½ï¿½ï¿½: {scenario.Description ?? "(ï¿½ï¿½ï¿½ï¿½)"}");
+                Console.WriteLine($"    Steps: {scenario.Steps.Count}ï¿½ï¿½");
                 Console.WriteLine();
             }
 
@@ -104,18 +104,18 @@ namespace AutoRegressionVM.CLI
 
         private int ListVMs()
         {
-            Console.WriteLine("[INFO] µî·ÏµÈ VM ¸ñ·Ï:\n");
+            Console.WriteLine("[INFO] ï¿½ï¿½Ïµï¿½ VM ï¿½ï¿½ï¿½:\n");
 
             if (_appSettings.RegisteredVMs.Count == 0)
             {
-                Console.WriteLine("  (µî·ÏµÈ VMÀÌ ¾ø½À´Ï´Ù)");
+                Console.WriteLine("  (ï¿½ï¿½Ïµï¿½ VMï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½Ï´ï¿½)");
                 return 0;
             }
 
             foreach (var vm in _appSettings.RegisteredVMs)
             {
                 Console.WriteLine($"  ? {vm.Name}");
-                Console.WriteLine($"    °æ·Î: {vm.VmxPath}");
+                Console.WriteLine($"    ï¿½ï¿½ï¿½: {vm.VmxPath}");
                 Console.WriteLine();
             }
 
@@ -124,64 +124,64 @@ namespace AutoRegressionVM.CLI
 
         private async Task<int> RunScenarioAsync()
         {
-            // ½Ã³ª¸®¿À Ã£±â
+            // ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½ Ã£ï¿½ï¿½
             var scenarios = _settingsService.LoadAllScenarios();
             var scenario = scenarios.FirstOrDefault(s => 
                 s.Name.Equals(_options.ScenarioName, StringComparison.OrdinalIgnoreCase));
 
             if (scenario == null)
             {
-                Console.WriteLine($"[ERROR] ½Ã³ª¸®¿À¸¦ Ã£À» ¼ö ¾øÀ½: {_options.ScenarioName}");
+                Console.WriteLine($"[ERROR] ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ Ã£ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½: {_options.ScenarioName}");
                 return 2;
             }
 
-            // º´·Ä ¼ö ¿À¹ö¶óÀÌµå
+            // ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ìµï¿½
             if (_options.Parallel.HasValue)
             {
                 scenario.MaxParallelVMs = _options.Parallel.Value;
             }
 
-            Console.WriteLine($"[INFO] ½Ã³ª¸®¿À ·Îµå: {scenario.Name}");
-            Console.WriteLine($"[INFO] Steps: {scenario.Steps.Count}°³");
-            Console.WriteLine($"[INFO] º´·Ä VM ¼ö: {scenario.MaxParallelVMs}");
+            Console.WriteLine($"[INFO] ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Îµï¿½: {scenario.Name}");
+            Console.WriteLine($"[INFO] Steps: {scenario.Steps.Count}ï¿½ï¿½");
+            Console.WriteLine($"[INFO] ï¿½ï¿½ï¿½ï¿½ VM ï¿½ï¿½: {scenario.MaxParallelVMs}");
             Console.WriteLine();
 
             if (_options.DryRun)
             {
-                Console.WriteLine("[INFO] µå¶óÀÌ·± ¸ðµå - ½ÇÁ¦ ½ÇÇà ¾øÀÌ Á¾·á");
+                Console.WriteLine("[INFO] ï¿½ï¿½ï¿½ï¿½Ì·ï¿½ ï¿½ï¿½ï¿½ - ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½");
                 return 0;
             }
 
-            // VMware ¿¬°á
-            Console.WriteLine("[INFO] VMware ¿¬°á Áß...");
+            // VMware ï¿½ï¿½ï¿½ï¿½
+            Console.WriteLine("[INFO] VMware ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½...");
             if (!await _vmwareService.ConnectAsync())
             {
-                Console.WriteLine("[ERROR] VMware ¿¬°á ½ÇÆÐ");
+                Console.WriteLine("[ERROR] VMware ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½");
                 return 3;
             }
-            Console.WriteLine("[INFO] VMware ¿¬°á ¼º°ø");
+            Console.WriteLine("[INFO] VMware ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½");
 
-            // ¾Ë¸² - ½ÃÀÛ
+            // ï¿½Ë¸ï¿½ - ï¿½ï¿½ï¿½ï¿½
             await _notificationManager.NotifyTestStartedAsync(scenario);
 
-            // Å×½ºÆ® ½ÇÇà
+            // ï¿½×½ï¿½Æ® ï¿½ï¿½ï¿½ï¿½
             var testRunner = new TestRunner(_vmwareService, _appSettings.RegisteredVMs);
             testRunner.ProgressChanged += OnProgressChanged;
             testRunner.LogGenerated += OnLogGenerated;
 
             Console.WriteLine();
-            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] Å×½ºÆ® ½ÃÀÛ...");
+            Console.WriteLine($"[{DateTime.Now:HH:mm:ss}] ï¿½×½ï¿½Æ® ï¿½ï¿½ï¿½ï¿½...");
             Console.WriteLine();
 
             var result = await testRunner.RunScenarioAsync(scenario);
 
-            // °á°ú Ãâ·Â
+            // ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½
             PrintResult(result);
 
-            // °á°ú ÀúÀå
+            // ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½
             _settingsService.SaveResult(result, _options.ReportPath);
 
-            // ¾Ë¸² - ¿Ï·á
+            // ï¿½Ë¸ï¿½ - ï¿½Ï·ï¿½
             await _notificationManager.NotifyTestCompletedAsync(result);
 
             // Exit code
@@ -215,57 +215,57 @@ namespace AutoRegressionVM.CLI
             }
         }
 
-                private void PrintResult(ScenarioResult result)
+        private void PrintResult(ScenarioResult result)
+        {
+            Console.WriteLine();
+            Console.WriteLine("????????????????????????????????????????????????????????????????");
+            Console.WriteLine("                        TEST SUMMARY");
+            Console.WriteLine("????????????????????????????????????????????????????????????????");
+
+            if (_options.OutputFormat == "json")
+            {
+                var json = SerializeToJson(result);
+                Console.WriteLine(json);
+            }
+            else
+            {
+                Console.WriteLine($"ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½: {result.ScenarioName}");
+                Console.WriteLine($"ï¿½ï¿½ï¿½ï¿½: {result.StartTime:yyyy-MM-dd HH:mm:ss}");
+                Console.WriteLine($"ï¿½ï¿½ï¿½ï¿½: {result.EndTime:yyyy-MM-dd HH:mm:ss}");
+                Console.WriteLine($"ï¿½Ò¿ï¿½Ã°ï¿½: {result.Duration:hh\\:mm\\:ss}");
+                Console.WriteLine();
+                Console.WriteLine($"Total: {result.TotalCount} | Passed: {result.PassedCount} | Failed: {result.FailedCount} | Skipped: {result.SkippedCount}");
+                Console.WriteLine();
+
+                // ï¿½ï¿½ ï¿½ï¿½ï¿½
+                foreach (var testResult in result.TestResults)
                 {
-                    Console.WriteLine();
-                    Console.WriteLine("????????????????????????????????????????????????????????????????");
-                    Console.WriteLine("                        TEST SUMMARY");
-                    Console.WriteLine("????????????????????????????????????????????????????????????????");
-
-                    if (_options.OutputFormat == "json")
-                    {
-                        var json = SerializeToJson(result);
-                        Console.WriteLine(json);
-                    }
+                    string statusIcon;
+                    if (testResult.Status == TestResultStatus.Passed)
+                        statusIcon = "?";
+                    else if (testResult.Status == TestResultStatus.Failed)
+                        statusIcon = "?";
+                    else if (testResult.Status == TestResultStatus.Error)
+                        statusIcon = "?";
                     else
+                        statusIcon = "ï¿½ï¿½";
+
+                    Console.WriteLine($"  {statusIcon} [{testResult.VMName}] {testResult.TestStepName} - {testResult.Status} ({testResult.Duration:mm\\:ss})");
+
+                    if (testResult.Status != TestResultStatus.Passed && !string.IsNullOrEmpty(testResult.ErrorMessage))
                     {
-                        Console.WriteLine($"½Ã³ª¸®¿À: {result.ScenarioName}");
-                        Console.WriteLine($"½ÃÀÛ: {result.StartTime:yyyy-MM-dd HH:mm:ss}");
-                        Console.WriteLine($"Á¾·á: {result.EndTime:yyyy-MM-dd HH:mm:ss}");
-                        Console.WriteLine($"¼Ò¿ä½Ã°£: {result.Duration:hh\\:mm\\:ss}");
-                        Console.WriteLine();
-                        Console.WriteLine($"Total: {result.TotalCount} | Passed: {result.PassedCount} | Failed: {result.FailedCount} | Skipped: {result.SkippedCount}");
-                        Console.WriteLine();
-
-                        // »ó¼¼ °á°ú
-                        foreach (var testResult in result.TestResults)
-                        {
-                            string statusIcon;
-                            if (testResult.Status == TestResultStatus.Passed)
-                                statusIcon = "?";
-                            else if (testResult.Status == TestResultStatus.Failed)
-                                statusIcon = "?";
-                            else if (testResult.Status == TestResultStatus.Error)
-                                statusIcon = "?";
-                            else
-                                statusIcon = "¡Û";
-
-                            Console.WriteLine($"  {statusIcon} [{testResult.VMName}] {testResult.TestStepName} - {testResult.Status} ({testResult.Duration:mm\\:ss})");
-
-                            if (testResult.Status != TestResultStatus.Passed && !string.IsNullOrEmpty(testResult.ErrorMessage))
-                            {
-                                Console.WriteLine($"      Error: {testResult.ErrorMessage}");
-                            }
-                        }
+                        Console.WriteLine($"      Error: {testResult.ErrorMessage}");
                     }
+                }
+            }
 
-                                Console.WriteLine();
-                                Console.WriteLine($"Exit Code: {(result.IsSuccess ? 0 : 1)} ({(result.IsSuccess ? "Success" : "Some tests failed")})");
-                            }
+            Console.WriteLine();
+            Console.WriteLine($"Exit Code: {(result.IsSuccess ? 0 : 1)} ({(result.IsSuccess ? "Success" : "Some tests failed")})");
+        }
 
-                            private string SerializeToJson(ScenarioResult result)
-                            {
-                                return SimpleJson.Serialize(result);
-                            }
-                        }
-                    }
+        private string SerializeToJson(ScenarioResult result)
+        {
+            return JsonConvert.SerializeObject(result, Formatting.Indented);
+        }
+    }
+}

@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using AutoRegressionVM.Helpers;
+using Newtonsoft.Json;
 using AutoRegressionVM.Models;
 
 namespace AutoRegressionVM.Services
 {
     /// <summary>
-    /// ¼³Á¤ ¹× ½Ã³ª¸®¿À ÀúÀå/·Îµå ¼­ºñ½º
+    /// ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½/ï¿½Îµï¿½ ï¿½ï¿½ï¿½ï¿½
     /// </summary>
     public class SettingsService
     {
@@ -35,12 +35,12 @@ namespace AutoRegressionVM.Services
                 if (File.Exists(_settingsPath))
                 {
                     var json = File.ReadAllText(_settingsPath);
-                    return SimpleJson.Deserialize<AppSettings>(json) ?? new AppSettings();
+                    return JsonConvert.DeserializeObject<AppSettings>(json) ?? new AppSettings();
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"¼³Á¤ ·Îµå ½ÇÆÐ: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"ï¿½ï¿½ï¿½ï¿½ ï¿½Îµï¿½ ï¿½ï¿½ï¿½ï¿½: {ex.Message}");
             }
 
             return new AppSettings();
@@ -50,12 +50,12 @@ namespace AutoRegressionVM.Services
         {
             try
             {
-                var json = SimpleJson.Serialize(settings);
+                var json = JsonConvert.SerializeObject(settings, Formatting.Indented);
                 File.WriteAllText(_settingsPath, json);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"¼³Á¤ ÀúÀå ½ÇÆÐ: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½: {ex.Message}");
             }
         }
 
@@ -76,7 +76,7 @@ namespace AutoRegressionVM.Services
                         try
                         {
                             var json = File.ReadAllText(file);
-                            var scenario = SimpleJson.Deserialize<TestScenario>(json);
+                            var scenario = JsonConvert.DeserializeObject<TestScenario>(json);
                             if (scenario != null)
                             {
                                 scenarios.Add(scenario);
@@ -84,14 +84,14 @@ namespace AutoRegressionVM.Services
                         }
                         catch (Exception ex)
                         {
-                            System.Diagnostics.Debug.WriteLine($"½Ã³ª¸®¿À ·Îµå ½ÇÆÐ ({file}): {ex.Message}");
+                            System.Diagnostics.Debug.WriteLine($"ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½Îµï¿½ ï¿½ï¿½ï¿½ï¿½ ({file}): {ex.Message}");
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"½Ã³ª¸®¿À ¸ñ·Ï ·Îµå ½ÇÆÐ: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½Îµï¿½ ï¿½ï¿½ï¿½ï¿½: {ex.Message}");
             }
 
             return scenarios;
@@ -104,12 +104,12 @@ namespace AutoRegressionVM.Services
                 var fileName = SanitizeFileName(scenario.Name) + ".json";
                 var filePath = Path.Combine(_scenariosDirectory, fileName);
 
-                var json = SimpleJson.Serialize(scenario);
+                var json = JsonConvert.SerializeObject(scenario, Formatting.Indented);
                 File.WriteAllText(filePath, json);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"½Ã³ª¸®¿À ÀúÀå ½ÇÆÐ: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½: {ex.Message}");
                 throw;
             }
         }
@@ -128,7 +128,7 @@ namespace AutoRegressionVM.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"½Ã³ª¸®¿À »èÁ¦ ½ÇÆÐ: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"ï¿½Ã³ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½: {ex.Message}");
             }
         }
 
@@ -163,12 +163,12 @@ namespace AutoRegressionVM.Services
                 var fileName = $"{SanitizeFileName(result.ScenarioName)}_{result.StartTime:HHmmss}.json";
                 var filePath = Path.Combine(resultDir, fileName);
 
-                var json = SimpleJson.Serialize(result);
+                var json = JsonConvert.SerializeObject(result, Formatting.Indented);
                 File.WriteAllText(filePath, json);
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"°á°ú ÀúÀå ½ÇÆÐ: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½: {ex.Message}");
             }
         }
 
