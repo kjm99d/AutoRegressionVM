@@ -220,8 +220,19 @@ namespace AutoRegressionVM.Services.TestExecution
         {
             var targetFiles = scenario.TestTargetFiles;
             var vmPaths = scenario.TargetVMPaths;
-            using (var semaphore = new SemaphoreSlim(scenario.MaxParallelVMs > 0 ? scenario.MaxParallelVMs : 1))
+            // 글로벌 세마포어: 전체 동시 실행 수 제한 (VM 수 이하로 클램핑)
+            var maxParallel = Math.Min(
+                scenario.MaxParallelVMs > 0 ? scenario.MaxParallelVMs : 1,
+                vmPaths.Count);
+            using (var semaphore = new SemaphoreSlim(maxParallel))
             {
+            // VM별 세마포어: 같은 VM에 동시 작업 방지
+            var vmSemaphores = new Dictionary<string, SemaphoreSlim>();
+            foreach (var path in vmPaths)
+            {
+                vmSemaphores[path] = new SemaphoreSlim(1, 1);
+            }
+
             var tasks = new List<Task>();
 
             try
@@ -236,8 +247,10 @@ namespace AutoRegressionVM.Services.TestExecution
                     var vm = GetVMInfo(vmxPath);
                     var vmDisplayName = vm.Name ?? Path.GetFileNameWithoutExtension(vmxPath);
                     var fileIndex = i;
+                    var vmSemaphore = vmSemaphores[vmxPath];
 
                     await semaphore.WaitAsync(_cancellationTokenSource.Token);
+                    await vmSemaphore.WaitAsync(_cancellationTokenSource.Token);
 
                     var task = Task.Run(async () =>
                     {
@@ -317,6 +330,7 @@ namespace AutoRegressionVM.Services.TestExecution
                         }
                         finally
                         {
+                            vmSemaphore.Release();
                             semaphore.Release();
                         }
                     }, _cancellationTokenSource.Token);
@@ -348,6 +362,12 @@ namespace AutoRegressionVM.Services.TestExecution
                             Log(TestLogLevel.Error, $"병렬 Task 오류: {inner.Message}");
                     }
                 }
+            }
+
+            // VM별 세마포어 정리
+            foreach (var vs in vmSemaphores.Values)
+            {
+                vs.Dispose();
             }
             } // end using semaphore
         }
