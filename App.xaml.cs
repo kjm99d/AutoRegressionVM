@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
@@ -29,6 +29,10 @@ namespace AutoRegressionVM
         private static extern bool FreeConsole();
 
         private const int ATTACH_PARENT_PROCESS = -1;
+
+        private VixService _vmwareService;
+        private SchedulerService _schedulerService;
+        private MainViewModel _viewModel;
 
         protected override async void OnStartup(StartupEventArgs e)
         {
@@ -62,17 +66,26 @@ namespace AutoRegressionVM
                 var settingsService = new SettingsService();
                 var appSettings = settingsService.LoadSettings();
                 var reportService = new ReportService();
-                var vmwareService = new VixService(appSettings.VMwareInstallPath);
+                _vmwareService = new VixService(appSettings.VMwareInstallPath);
                 var notificationManager = new NotificationManager(appSettings.Notification);
+                _schedulerService = new SchedulerService();
 
                 var scenarioService = new ScenarioService(settingsService);
-                var viewModel = new MainViewModel(settingsService, scenarioService, reportService, vmwareService, notificationManager);
+                _viewModel = new MainViewModel(settingsService, scenarioService, reportService,
+                    _vmwareService, notificationManager, _schedulerService);
 
                 var mainWindow = new MainWindow();
-                mainWindow.DataContext = viewModel;
+                mainWindow.DataContext = _viewModel;
                 mainWindow.Show();
             }
         }
+
+        protected override void OnExit(ExitEventArgs e)
+        {
+            _viewModel?.Cleanup();
+            _schedulerService?.Dispose();
+            _vmwareService?.Dispose();
+            base.OnExit(e);
+        }
     }
 }
-

@@ -26,6 +26,7 @@ namespace AutoRegressionVM.ViewModels
         private readonly IScenarioService _scenarioService;
         private readonly NotificationManager _notificationManager;
         private readonly IReportService _reportService;
+        private readonly Services.SchedulerService _schedulerService;
         private AppSettings _appSettings;
         private ITestRunner _testRunner;
         private ScenarioResult _lastScenarioResult;
@@ -129,12 +130,14 @@ namespace AutoRegressionVM.ViewModels
         public ICommand ExportLogCommand { get; }
         public ICommand ReRunCommand { get; }
         public ICommand ClearLogCommand { get; }
+        public ICommand SchedulerCommand { get; }
 
         #endregion
 
         public MainViewModel(ISettingsService settingsService, IScenarioService scenarioService,
                              IReportService reportService, IVMwareService vmwareService,
-                             NotificationManager notificationManager)
+                             NotificationManager notificationManager,
+                             Services.SchedulerService schedulerService)
         {
             _settingsService = settingsService;
             _scenarioService = scenarioService;
@@ -142,6 +145,7 @@ namespace AutoRegressionVM.ViewModels
             _appSettings = _settingsService.LoadSettings();
             _vmwareService = vmwareService;
             _notificationManager = notificationManager;
+            _schedulerService = schedulerService;
 
             // Commands 초기화
             ConnectCommand = new AsyncRelayCommand(async _ => await ConnectAsync(), _ => !IsConnected);
@@ -164,6 +168,11 @@ namespace AutoRegressionVM.ViewModels
             ExportLogCommand = new RelayCommand(_ => ExportLog(), _ => Logs.Count > 0);
             ReRunCommand = new AsyncRelayCommand(async _ => await RunScenarioAsync(), _ => IsConnected && !IsRunning && _lastScenarioResult != null && SelectedScenario != null);
             ClearLogCommand = new RelayCommand(_ => { Logs.Clear(); AddLog("로그 초기화됨"); });
+            SchedulerCommand = new RelayCommand(_ => OpenScheduler());
+
+            // 스케줄러 이벤트 연결
+            _schedulerService.TaskTriggered += OnScheduledTaskTriggered;
+            _schedulerService.Start();
 
             // 경과 시간 타이머
             _elapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
@@ -758,6 +767,56 @@ namespace AutoRegressionVM.ViewModels
                     AddLog($"로그 내보내기 실패: {ex.Message}");
                 }
             }
+        }
+
+        private void OpenScheduler()
+        {
+            var dialog = new Views.SchedulerDialog(_schedulerService, Scenarios)
+            {
+                Owner = Application.Current.MainWindow
+            };
+            dialog.ShowDialog();
+        }
+
+        private async void OnScheduledTaskTriggered(object sender, Services.ScheduledTask task)
+        {
+            await Application.Current.Dispatcher.InvokeAsync(async () =>
+            {
+                var scenario = Scenarios.FirstOrDefault(s => s.Id == task.ScenarioId);
+                if (scenario == null)
+                {
+                    AddLog($"[스케줄러] 시나리오를 찾을 수 없음: {task.ScenarioName} (ID: {task.ScenarioId})");
+                    return;
+                }
+
+                if (IsRunning)
+                {
+                    AddLog($"[스케줄러] 이미 실행 중이므로 스케줄 건너뜀: {task.Name}");
+                    return;
+                }
+
+                if (!IsConnected)
+                {
+                    AddLog($"[스케줄러] VMware 미연결 - 자동 연결 시도: {task.Name}");
+                    await ConnectAsync();
+                    if (!IsConnected)
+                    {
+                        AddLog($"[스케줄러] VMware 연결 실패 - 스케줄 건너뜀: {task.Name}");
+                        return;
+                    }
+                }
+
+                AddLog($"[스케줄러] 예약 실행 시작: {task.Name} → {scenario.Name}");
+                SelectedScenario = scenario;
+                await RunScenarioAsync();
+            });
+        }
+
+        public void Cleanup()
+        {
+            _schedulerService.TaskTriggered -= OnScheduledTaskTriggered;
+            _schedulerService.Stop();
+            _elapsedTimer?.Stop();
         }
 
         private void LoadSavedData()

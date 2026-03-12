@@ -89,6 +89,12 @@
                 </StackPanel>
             </Button>
             <Separator Margin="10,0"/>
+            <Button Command="{Binding SchedulerCommand}" Padding="10,5" Margin="2">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="⏰" Margin="0,0,5,0"/>
+                    <TextBlock Text="스케줄"/>
+                </StackPanel>
+            </Button>
             <Button Command="{Binding ViewHistoryCommand}" Padding="10,5" Margin="2">
                 <StackPanel Orientation="Horizontal">
                     <TextBlock Text="📊" Margin="0,0,5,0"/>
