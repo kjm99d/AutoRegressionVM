@@ -8,7 +8,7 @@ using AutoRegressionVM.Models;
 namespace AutoRegressionVM.Services.Notification
 {
     /// <summary>
-    /// Microsoft Teams �˸� ����
+    /// Microsoft Teams 알림 서비스
     /// </summary>
     public class TeamsNotificationService : INotificationService
     {
@@ -24,13 +24,13 @@ namespace AutoRegressionVM.Services.Notification
         public async Task SendTestStartedAsync(TestScenario scenario)
         {
             var card = CreateAdaptiveCard(
-                "?? �׽�Ʈ ����",
+                "테스트 시작",
                 "1E90FF",
                 new[]
                 {
-                    ("�ó�����", scenario.Name),
-                    ("Steps", $"{scenario.Steps.Count}��"),
-                    ("���� �ð�", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"))
+                    ("시나리오", scenario.Name),
+                    ("Steps", $"{scenario.Steps.Count}개"),
+                    ("시작 시간", DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"))
                 });
 
             await SendCardAsync(card);
@@ -39,19 +39,19 @@ namespace AutoRegressionVM.Services.Notification
         public async Task SendTestCompletedAsync(ScenarioResult result)
         {
             var color = result.IsSuccess ? "28A745" : "DC3545";
-            var title = result.IsSuccess ? "? �׽�Ʈ �Ϸ� - ����" : "? �׽�Ʈ �Ϸ� - ����";
+            var title = result.IsSuccess ? "테스트 완료 - 성공" : "테스트 완료 - 실패";
 
             var card = CreateAdaptiveCard(
                 title,
                 color,
                 new[]
                 {
-                    ("�ó�����", result.ScenarioName),
-                    ("�ҿ�ð�", result.Duration.ToString(@"hh\:mm\:ss")),
-                    ("����", $"{result.PassedCount}��"),
-                    ("����", $"{result.FailedCount}��"),
-                    ("��ŵ", $"{result.SkippedCount}��"),
-                    ("����", $"{result.ErrorCount}��")
+                    ("시나리오", result.ScenarioName),
+                    ("소요시간", result.Duration.ToString(@"hh\:mm\:ss")),
+                    ("성공", $"{result.PassedCount}개"),
+                    ("실패", $"{result.FailedCount}개"),
+                    ("스킵", $"{result.SkippedCount}개"),
+                    ("오류", $"{result.ErrorCount}개")
                 });
 
             await SendCardAsync(card);
@@ -60,13 +60,13 @@ namespace AutoRegressionVM.Services.Notification
         public async Task SendTestFailedAsync(TestResult result)
         {
             var card = CreateAdaptiveCard(
-                "? �׽�Ʈ ����",
+                "테스트 실패",
                 "DC3545",
                 new[]
                 {
-                    ("�׽�Ʈ", result.TestStepName),
+                    ("테스트", result.TestStepName),
                     ("VM", result.VMName),
-                    ("����", result.ErrorMessage ?? "�� �� ����")
+                    ("원인", result.ErrorMessage ?? "알 수 없음")
                 });
 
             await SendCardAsync(card);
@@ -75,9 +75,9 @@ namespace AutoRegressionVM.Services.Notification
         public async Task SendErrorAsync(string errorMessage)
         {
             var card = CreateAdaptiveCard(
-                "?? ���� �߻�",
+                "오류 발생",
                 "FFC107",
-                new[] { ("�޽���", errorMessage) });
+                new[] { ("메시지", errorMessage) });
 
             await SendCardAsync(card);
         }
@@ -87,9 +87,9 @@ namespace AutoRegressionVM.Services.Notification
             try
             {
                 var card = CreateAdaptiveCard(
-                    "?? �˸� �׽�Ʈ",
+                    "알림 테스트",
                     "17A2B8",
-                    new[] { ("����", "AutoRegressionVM �˸� �׽�Ʈ �޽����Դϴ�.") });
+                    new[] { ("내용", "AutoRegressionVM 알림 테스트 메시지입니다.") });
 
                 await SendCardAsync(card);
                 return true;
@@ -142,28 +142,28 @@ namespace AutoRegressionVM.Services.Notification
             };
         }
 
-                        private async Task SendCardAsync(object card)
-                        {
-                            if (string.IsNullOrEmpty(_webhookUrl))
-                                return;
+        private async Task SendCardAsync(object card)
+        {
+            if (string.IsNullOrEmpty(_webhookUrl))
+                return;
 
-                            try
-                            {
-                                var json = SerializeCard(card);
-                                var content = new StringContent(json, Encoding.UTF8, "application/json");
+            try
+            {
+                var json = SerializeCard(card);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                                var response = await _httpClient.PostAsync(_webhookUrl, content);
-                                response.EnsureSuccessStatusCode();
-                            }
-                            catch (Exception ex)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"Teams �˸� ���� ����: {ex.Message}");
-                            }
-                        }
+                var response = await _httpClient.PostAsync(_webhookUrl, content);
+                response.EnsureSuccessStatusCode();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Teams 알림 전송 실패: {ex.Message}");
+            }
+        }
 
-                        private string SerializeCard(object card)
-                        {
-                            return JsonConvert.SerializeObject(card);
-                        }
-                    }
-                }
+        private string SerializeCard(object card)
+        {
+            return JsonConvert.SerializeObject(card);
+        }
+    }
+}

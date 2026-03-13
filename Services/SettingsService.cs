@@ -7,7 +7,7 @@ using AutoRegressionVM.Models;
 namespace AutoRegressionVM.Services
 {
     /// <summary>
-    /// ���� �� �ó����� ����/�ε� ����
+    /// 설정 및 시나리오 저장/로드 서비스
     /// </summary>
     public class SettingsService : ISettingsService
     {
@@ -40,7 +40,7 @@ namespace AutoRegressionVM.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"���� �ε� ����: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"설정 로드 실패: {ex.Message}");
             }
 
             return new AppSettings();
@@ -55,7 +55,7 @@ namespace AutoRegressionVM.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"���� ���� ����: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"설정 저장 실패: {ex.Message}");
             }
         }
 
@@ -84,14 +84,14 @@ namespace AutoRegressionVM.Services
                         }
                         catch (Exception ex)
                         {
-                            System.Diagnostics.Debug.WriteLine($"�ó����� �ε� ���� ({file}): {ex.Message}");
+                            System.Diagnostics.Debug.WriteLine($"시나리오 로드 실패 ({file}): {ex.Message}");
                         }
                     }
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"�ó����� ��� �ε� ����: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"시나리오 목록 로드 실패: {ex.Message}");
             }
 
             return scenarios;
@@ -167,8 +167,8 @@ namespace AutoRegressionVM.Services
             try
             {
                 var resultDir = outputPath ?? Path.Combine(
-                    AppDomain.CurrentDomain.BaseDirectory, 
-                    "Results", 
+                    AppDomain.CurrentDomain.BaseDirectory,
+                    "Results",
                     DateTime.Now.ToString("yyyyMMdd"));
 
                 if (!Directory.Exists(resultDir))
@@ -184,7 +184,7 @@ namespace AutoRegressionVM.Services
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"��� ���� ����: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"결과 저장 실패: {ex.Message}");
             }
         }
 
