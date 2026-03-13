@@ -3,63 +3,63 @@ using System.Collections.Generic;
 namespace AutoRegressionVM.Models
 {
     /// <summary>
-    /// ¾ÖÇÃ¸®ÄÉÀÌ¼Ç ¼³Á¤
+    /// ì• í”Œë¦¬ì¼€ì´ì…˜ ì„¤ì •
     /// </summary>
     public class AppSettings
     {
         /// <summary>
-        /// VMware Workstation ¼³Ä¡ °æ·Î
+        /// VMware Workstation ì„¤ì¹˜ ê²½ë¡œ
         /// </summary>
         public string VMwareInstallPath { get; set; } = @"C:\Program Files (x86)\VMware\VMware Workstation";
 
         /// <summary>
-        /// ±âº» VM ÀúÀå °æ·Î
+        /// ê¸°ë³¸ VM ì €ì¥ ê²½ë¡œ
         /// </summary>
         public string DefaultVMPath { get; set; }
 
         /// <summary>
-        /// Å×½ºÆ® °á°ú ÀúÀå °æ·Î
+        /// í…ŒìŠ¤íŠ¸ ê²°ê³¼ ì €ì¥ ê²½ë¡œ
         /// </summary>
         public string ResultOutputPath { get; set; } = @".\Results";
 
         /// <summary>
-        /// ½Ã³ª¸®¿À ÀúÀå °æ·Î
+        /// ì‹œë‚˜ë¦¬ì˜¤ ì €ì¥ ê²½ë¡œ
         /// </summary>
         public string ScenariosPath { get; set; } = @".\Scenarios";
 
         /// <summary>
-        /// ¾Ë¸² ¼³Á¤
+        /// ì•Œë¦¼ ì„¤ì •
         /// </summary>
         public NotificationSettings Notification { get; set; } = new NotificationSettings();
 
         /// <summary>
-        /// µî·ÏµÈ VM ¸ñ·Ï
+        /// ë“±ë¡ëœ VM ëª©ë¡
         /// </summary>
         public List<VMInfo> RegisteredVMs { get; set; } = new List<VMInfo>();
     }
 
     /// <summary>
-    /// ¾Ë¸² ¼³Á¤
+    /// ì•Œë¦¼ ì„¤ì •
     /// </summary>
     public class NotificationSettings
     {
         public bool Enabled { get; set; } = false;
         public NotificationType Type { get; set; } = NotificationType.None;
 
-        // Slack ¼³Á¤
+        // Slack ì„¤ì •
         public string SlackWebhookUrl { get; set; }
 
-        // Teams ¼³Á¤
+        // Teams ì„¤ì •
         public string TeamsWebhookUrl { get; set; }
 
-        // Email ¼³Á¤
+        // Email ì„¤ì •
         public string SmtpServer { get; set; }
         public int SmtpPort { get; set; } = 587;
         public string SmtpUsername { get; set; }
         public string SmtpPassword { get; set; }
         public string EmailTo { get; set; }
 
-        // ¾Ë¸² Á¶°Ç
+        // ì•Œë¦¼ ì¡°ê±´
         public bool NotifyOnComplete { get; set; } = true;
         public bool NotifyOnFailure { get; set; } = true;
         public bool NotifyOnStart { get; set; } = false;

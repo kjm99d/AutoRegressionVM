@@ -4,7 +4,7 @@ using System.Windows.Input;
 namespace AutoRegressionVM.Helpers
 {
     /// <summary>
-    /// MVVM¿ë RelayCommand
+    /// MVVMìš© RelayCommand
     /// </summary>
     public class RelayCommand : ICommand
     {
@@ -40,7 +40,7 @@ namespace AutoRegressionVM.Helpers
     }
 
     /// <summary>
-    /// Async Áö¿ø RelayCommand
+    /// Async ì§€ì› RelayCommand
     /// </summary>
     public class AsyncRelayCommand : ICommand
     {

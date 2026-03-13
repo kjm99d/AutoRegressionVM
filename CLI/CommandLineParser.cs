@@ -4,7 +4,7 @@ using System.Linq;
 namespace AutoRegressionVM.CLI
 {
     /// <summary>
-    /// Ä¿¸Çµå¶óÀÎ ÀÎ¼ö ÆÄ¼­
+    /// ì»¤ë§¨ë“œë¼ì¸ ì¸ìˆ˜ íŒŒì„œ
     /// </summary>
     public static class CommandLineParser
     {
@@ -92,47 +92,47 @@ namespace AutoRegressionVM.CLI
         public static void PrintHelp()
         {
             Console.WriteLine(@"
-????????????????????????????????????????????????????????????????
-?              AutoRegressionVM - CLI Mode                     ?
-????????????????????????????????????????????????????????????????
+================================================================
+              AutoRegressionVM - CLI Mode
+================================================================
 
-»ç¿ë¹ı:
-  AutoRegressionVM.exe [¿É¼Ç]
+ì‚¬ìš©ë²•:
+  AutoRegressionVM.exe [ì˜µì…˜]
 
-¿É¼Ç:
-  --cli, -c                 CLI ¸ğµå·Î ½ÇÇà
-  --scenario, -s <ÀÌ¸§>     ½ÇÇàÇÒ ½Ã³ª¸®¿À ÀÌ¸§
-  --vm <ÀÌ¸§>               Æ¯Á¤ VM¿¡¼­¸¸ ½ÇÇà
-  --parallel, -p <¼ö>       º´·Ä ½ÇÇà VM ¼ö
-  --output, -o <Çü½Ä>       Ãâ·Â Çü½Ä (text, json, xml)
-  --report, -r <°æ·Î>       ¸®Æ÷Æ® ÀúÀå °æ·Î
-  --timeout, -t <ºĞ>        ÀüÃ¼ Å¸ÀÓ¾Æ¿ô (ºĞ)
-  --list-scenarios          ½Ã³ª¸®¿À ¸ñ·Ï Á¶È¸
-  --list-vms                VM ¸ñ·Ï Á¶È¸
-  --verbose, -v             »ó¼¼ ·Î±× Ãâ·Â
-  --dry-run                 ½ÇÁ¦ ½ÇÇà ¾øÀÌ °ËÁõ¸¸
-  --help, -h                µµ¿ò¸» Ç¥½Ã
+ì˜µì…˜:
+  --cli, -c                 CLI ëª¨ë“œ ì‹¤í–‰
+  --scenario, -s <ì´ë¦„>     ì‹¤í–‰í•  ì‹œë‚˜ë¦¬ì˜¤ ì´ë¦„
+  --vm <ì´ë¦„>               íŠ¹ì • VMì—ì„œë§Œ ì‹¤í–‰
+  --parallel, -p <ìˆ˜>       ë³‘ë ¬ ì‹¤í–‰ VM ìˆ˜
+  --output, -o <í˜•ì‹>       ì¶œë ¥ í˜•ì‹ (text, json, xml)
+  --report, -r <ê²½ë¡œ>       ë¦¬í¬íŠ¸ ì €ì¥ ê²½ë¡œ
+  --timeout, -t <ë¶„>        ì „ì²´ íƒ€ì„ì•„ì›ƒ (ë¶„)
+  --list-scenarios          ì‹œë‚˜ë¦¬ì˜¤ ëª©ë¡ ì¡°íšŒ
+  --list-vms                VM ëª©ë¡ ì¡°íšŒ
+  --verbose, -v             ìƒì„¸ ë¡œê·¸ ì¶œë ¥
+  --dry-run                 ì‹¤ì œ ì‹¤í–‰ ì—†ì´ ê²€ì¦ë§Œ
+  --help, -h                ë„ì›€ë§ í‘œì‹œ
 
-¿¹Á¦:
-  # ½Ã³ª¸®¿À ½ÇÇà
-  AutoRegressionVM.exe --cli --scenario ""¾Ç¼ºÄÚµå ºĞ¼® Å×½ºÆ®""
+ì˜ˆì‹œ:
+  # ì‹œë‚˜ë¦¬ì˜¤ ì‹¤í–‰
+  AutoRegressionVM.exe --cli --scenario ""ì•…ì„±ì½”ë“œ ë¶„ì„ í…ŒìŠ¤íŠ¸""
 
-  # º´·Ä ½ÇÇà (ÃÖ´ë 3°³ VM)
-  AutoRegressionVM.exe --cli -s ""ÀüÃ¼ ¸®±×·¹¼Ç"" --parallel 3
+  # ë³‘ë ¬ ì‹¤í–‰ (ìµœëŒ€ 3ëŒ€ VM)
+  AutoRegressionVM.exe --cli -s ""ì „ì²´ ë¦¬ê·¸ë ˆì…˜"" --parallel 3
 
-  # JSON Ãâ·Â
-  AutoRegressionVM.exe --cli -s ""Å×½ºÆ®"" --output json
+  # JSON ì¶œë ¥
+  AutoRegressionVM.exe --cli -s ""í…ŒìŠ¤íŠ¸"" --output json
 
-  # ¸®Æ÷Æ® ÀúÀå
-  AutoRegressionVM.exe --cli -s ""Å×½ºÆ®"" --report ""C:\Reports\result.html""
+  # ë¦¬í¬íŠ¸ ì €ì¥
+  AutoRegressionVM.exe --cli -s ""í…ŒìŠ¤íŠ¸"" --report ""C:\Reports\result.html""
 
 Exit Codes:
-  0  ¸ğµç Å×½ºÆ® ¼º°ø
-  1  ÀÏºÎ Å×½ºÆ® ½ÇÆĞ
-  2  ½Ã³ª¸®¿À¸¦ Ã£À» ¼ö ¾øÀ½
-  3  VM ¿¬°á ½ÇÆĞ
-  4  Àß¸øµÈ ÀÎ¼ö
-  5  Å¸ÀÓ¾Æ¿ô
+  0  ëª¨ë“  í…ŒìŠ¤íŠ¸ ì„±ê³µ
+  1  ì¼ë¶€ í…ŒìŠ¤íŠ¸ ì‹¤íŒ¨
+  2  ì‹œë‚˜ë¦¬ì˜¤ë¥¼ ì°¾ì„ ìˆ˜ ì—†ìŒ
+  3  VM ì—°ê²° ì‹¤íŒ¨
+  4  ì˜ëª»ëœ ì¸ìˆ˜
+  5  íƒ€ì„ì•„ì›ƒ
 ");
         }
     }

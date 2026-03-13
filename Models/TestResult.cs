@@ -4,14 +4,14 @@ using System.Collections.Generic;
 namespace AutoRegressionVM.Models
 {
     /// <summary>
-    /// Å×½ºÆ® °á°ú
+    /// í…ŒìŠ¤íŠ¸ ê²°ê³¼
     /// </summary>
     public class TestResult
     {
         public string TestStepId { get; set; }
         public string TestStepName { get; set; }
         public string VMName { get; set; }
-        
+
         public TestResultStatus Status { get; set; }
         public DateTime StartTime { get; set; }
         public DateTime? EndTime { get; set; }
@@ -22,12 +22,12 @@ namespace AutoRegressionVM.Models
         public string ErrorMessage { get; set; }
 
         /// <summary>
-        /// ¼öÁıµÈ ½ºÅ©¸°¼¦ °æ·Î ¸ñ·Ï
+        /// ìˆ˜ì§‘ëœ ìŠ¤í¬ë¦°ìƒ· ê²½ë¡œ ëª©ë¡
         /// </summary>
         public List<string> ScreenshotPaths { get; set; } = new List<string>();
 
         /// <summary>
-        /// ¼öÁıµÈ °á°ú ÆÄÀÏ °æ·Î ¸ñ·Ï
+        /// ìˆ˜ì§‘ëœ ê²°ê³¼ íŒŒì¼ ê²½ë¡œ ëª©ë¡
         /// </summary>
         public List<string> CollectedFilePaths { get; set; } = new List<string>();
     }
@@ -44,7 +44,7 @@ namespace AutoRegressionVM.Models
     }
 
     /// <summary>
-    /// ½Ã³ª¸®¿À ÀüÃ¼ ½ÇÇà °á°ú
+    /// ì‹œë‚˜ë¦¬ì˜¤ ì „ì²´ ì‹¤í–‰ ê²°ê³¼
     /// </summary>
     public class ScenarioResult
     {

@@ -7,7 +7,7 @@ using AutoRegressionVM.Models;
 namespace AutoRegressionVM.Services.Notification
 {
     /// <summary>
-    /// Email ¾Ë¸² ¼­ºñ½º
+    /// Email ì•Œë¦¼ ì„œë¹„ìŠ¤
     /// </summary>
     public class EmailNotificationService : INotificationService
     {
@@ -30,13 +30,13 @@ namespace AutoRegressionVM.Services.Notification
 
         public async Task SendTestStartedAsync(TestScenario scenario)
         {
-            var subject = $"[AutoRegressionVM] Å×½ºÆ® ½ÃÀÛ: {scenario.Name}";
+            var subject = $"[AutoRegressionVM] í…ŒìŠ¤íŠ¸ ì‹œì‘: {scenario.Name}";
             var body = $@"
-<h2>?? Å×½ºÆ® ½ÃÀÛ</h2>
+<h2>í…ŒìŠ¤íŠ¸ ì‹œì‘</h2>
 <table>
-    <tr><td><strong>½Ã³ª¸®¿À:</strong></td><td>{scenario.Name}</td></tr>
-    <tr><td><strong>Steps:</strong></td><td>{scenario.Steps.Count}°³</td></tr>
-    <tr><td><strong>½ÃÀÛ ½Ã°£:</strong></td><td>{DateTime.Now:yyyy-MM-dd HH:mm:ss}</td></tr>
+    <tr><td><strong>ì‹œë‚˜ë¦¬ì˜¤:</strong></td><td>{scenario.Name}</td></tr>
+    <tr><td><strong>Steps:</strong></td><td>{scenario.Steps.Count}ê°œ</td></tr>
+    <tr><td><strong>ì‹œì‘ ì‹œê°„:</strong></td><td>{DateTime.Now:yyyy-MM-dd HH:mm:ss}</td></tr>
 </table>
 ";
             await SendEmailAsync(subject, body);
@@ -44,30 +44,30 @@ namespace AutoRegressionVM.Services.Notification
 
         public async Task SendTestCompletedAsync(ScenarioResult result)
         {
-            var status = result.IsSuccess ? "¼º°ø ?" : "½ÇÆĞ ?";
-            var subject = $"[AutoRegressionVM] Å×½ºÆ® ¿Ï·á - {status}: {result.ScenarioName}";
-            
+            var status = result.IsSuccess ? "ì„±ê³µ" : "ì‹¤íŒ¨";
+            var subject = $"[AutoRegressionVM] í…ŒìŠ¤íŠ¸ ì™„ë£Œ - {status}: {result.ScenarioName}";
+
             var resultRows = "";
             foreach (var testResult in result.TestResults)
             {
-                var statusEmoji = testResult.Status == TestResultStatus.Passed ? "?" : "?";
+                var statusEmoji = testResult.Status == TestResultStatus.Passed ? "O" : "X";
                 resultRows += $"<tr><td>{statusEmoji}</td><td>{testResult.TestStepName}</td><td>{testResult.VMName}</td><td>{testResult.Duration:mm\\:ss}</td></tr>";
             }
 
             var body = $@"
-<h2>{(result.IsSuccess ? "?" : "?")} Å×½ºÆ® ¿Ï·á - {status}</h2>
+<h2>í…ŒìŠ¤íŠ¸ ì™„ë£Œ - {status}</h2>
 <table>
-    <tr><td><strong>½Ã³ª¸®¿À:</strong></td><td>{result.ScenarioName}</td></tr>
-    <tr><td><strong>¼Ò¿ä½Ã°£:</strong></td><td>{result.Duration:hh\:mm\:ss}</td></tr>
-    <tr><td><strong>¼º°ø:</strong></td><td>{result.PassedCount}°³</td></tr>
-    <tr><td><strong>½ÇÆĞ:</strong></td><td>{result.FailedCount}°³</td></tr>
-    <tr><td><strong>½ºÅµ:</strong></td><td>{result.SkippedCount}°³</td></tr>
-    <tr><td><strong>¿À·ù:</strong></td><td>{result.ErrorCount}°³</td></tr>
+    <tr><td><strong>ì‹œë‚˜ë¦¬ì˜¤:</strong></td><td>{result.ScenarioName}</td></tr>
+    <tr><td><strong>ì†Œìš”ì‹œê°„:</strong></td><td>{result.Duration:hh\:mm\:ss}</td></tr>
+    <tr><td><strong>ì„±ê³µ:</strong></td><td>{result.PassedCount}ê°œ</td></tr>
+    <tr><td><strong>ì‹¤íŒ¨:</strong></td><td>{result.FailedCount}ê°œ</td></tr>
+    <tr><td><strong>ìŠ¤í‚µ:</strong></td><td>{result.SkippedCount}ê°œ</td></tr>
+    <tr><td><strong>ì˜¤ë¥˜:</strong></td><td>{result.ErrorCount}ê°œ</td></tr>
 </table>
 
-<h3>»ó¼¼ °á°ú</h3>
+<h3>ìƒì„¸ ê²°ê³¼</h3>
 <table border='1' cellpadding='5'>
-    <tr><th>»óÅÂ</th><th>Å×½ºÆ®</th><th>VM</th><th>¼Ò¿ä½Ã°£</th></tr>
+    <tr><th>ê²°ê³¼</th><th>í…ŒìŠ¤íŠ¸</th><th>VM</th><th>ì†Œìš”ì‹œê°„</th></tr>
     {resultRows}
 </table>
 ";
@@ -76,13 +76,13 @@ namespace AutoRegressionVM.Services.Notification
 
         public async Task SendTestFailedAsync(TestResult result)
         {
-            var subject = $"[AutoRegressionVM] Å×½ºÆ® ½ÇÆĞ: {result.TestStepName}";
+            var subject = $"[AutoRegressionVM] í…ŒìŠ¤íŠ¸ ì‹¤íŒ¨: {result.TestStepName}";
             var body = $@"
-<h2>? Å×½ºÆ® ½ÇÆĞ</h2>
+<h2>í…ŒìŠ¤íŠ¸ ì‹¤íŒ¨</h2>
 <table>
-    <tr><td><strong>Å×½ºÆ®:</strong></td><td>{result.TestStepName}</td></tr>
+    <tr><td><strong>í…ŒìŠ¤íŠ¸:</strong></td><td>{result.TestStepName}</td></tr>
     <tr><td><strong>VM:</strong></td><td>{result.VMName}</td></tr>
-    <tr><td><strong>¿À·ù:</strong></td><td>{result.ErrorMessage ?? "¾Ë ¼ö ¾øÀ½"}</td></tr>
+    <tr><td><strong>ì›ì¸:</strong></td><td>{result.ErrorMessage ?? "ì•Œ ìˆ˜ ì—†ìŒ"}</td></tr>
 </table>
 ";
             await SendEmailAsync(subject, body);
@@ -90,9 +90,9 @@ namespace AutoRegressionVM.Services.Notification
 
         public async Task SendErrorAsync(string errorMessage)
         {
-            var subject = "[AutoRegressionVM] ¿À·ù ¹ß»ı";
+            var subject = "[AutoRegressionVM] ì˜¤ë¥˜ ë°œìƒ";
             var body = $@"
-<h2>?? ¿À·ù ¹ß»ı</h2>
+<h2>ì˜¤ë¥˜ ë°œìƒ</h2>
 <p>{errorMessage}</p>
 ";
             await SendEmailAsync(subject, body);
@@ -102,8 +102,8 @@ namespace AutoRegressionVM.Services.Notification
         {
             try
             {
-                var subject = "[AutoRegressionVM] ¾Ë¸² Å×½ºÆ®";
-                var body = "<p>AutoRegressionVM ¾Ë¸² Å×½ºÆ® ¸Ş½ÃÁöÀÔ´Ï´Ù.</p>";
+                var subject = "[AutoRegressionVM] ì•Œë¦¼ í…ŒìŠ¤íŠ¸";
+                var body = "<p>AutoRegressionVM ì•Œë¦¼ í…ŒìŠ¤íŠ¸ ë©”ì‹œì§€ì…ë‹ˆë‹¤.</p>";
                 await SendEmailAsync(subject, body);
                 return true;
             }
@@ -139,7 +139,7 @@ namespace AutoRegressionVM.Services.Notification
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Email Àü¼Û ½ÇÆĞ: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine($"Email ì „ì†¡ ì‹¤íŒ¨: {ex.Message}");
             }
         }
     }

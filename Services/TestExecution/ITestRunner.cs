@@ -5,37 +5,37 @@ using AutoRegressionVM.Models;
 namespace AutoRegressionVM.Services.TestExecution
 {
     /// <summary>
-    /// �׽�Ʈ ����� �������̽�
+    /// 테스트 실행기 인터페이스
     /// </summary>
     public interface ITestRunner
     {
         /// <summary>
-        /// �ó����� ����
+        /// 시나리오 실행
         /// </summary>
         Task<ScenarioResult> RunScenarioAsync(TestScenario scenario);
 
         /// <summary>
-        /// ���� Step ����
+        /// 단일 Step 실행
         /// </summary>
         Task<TestResult> RunStepAsync(TestStep step, VMInfo vm);
 
         /// <summary>
-        /// ���� ���
+        /// 실행 취소
         /// </summary>
         void Cancel();
 
         /// <summary>
-        /// ���� �� ����
+        /// 실행 중 여부
         /// </summary>
         bool IsRunning { get; }
 
         /// <summary>
-        /// ���� ��Ȳ �̺�Ʈ
+        /// 진행 상황 이벤트
         /// </summary>
         event EventHandler<TestProgressEventArgs> ProgressChanged;
 
         /// <summary>
-        /// �α� �̺�Ʈ
+        /// 로그 이벤트
         /// </summary>
         event EventHandler<TestLogEventArgs> LogGenerated;
     }

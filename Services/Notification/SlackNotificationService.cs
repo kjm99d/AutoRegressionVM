@@ -8,7 +8,7 @@ using AutoRegressionVM.Models;
 namespace AutoRegressionVM.Services.Notification
 {
     /// <summary>
-    /// Slack ¾Ë¸² ¼­ºñ½º
+    /// Slack ì•Œë¦¼ ì„œë¹„ìŠ¤
     /// </summary>
     public class SlackNotificationService : INotificationService
     {
@@ -25,10 +25,10 @@ namespace AutoRegressionVM.Services.Notification
         {
             var message = new
             {
-                text = $"?? *Å×½ºÆ® ½ÃÀÛ*\n" +
-                       $"?? ½Ã³ª¸®¿À: {scenario.Name}\n" +
-                       $"?? Steps: {scenario.Steps.Count}°³\n" +
-                       $"? ½ÃÀÛ ½Ã°£: {DateTime.Now:yyyy-MM-dd HH:mm:ss}"
+                text = $"*í…ŒìŠ¤íŠ¸ ì‹œì‘*\n" +
+                       $"ì‹œë‚˜ë¦¬ì˜¤: {scenario.Name}\n" +
+                       $"Steps: {scenario.Steps.Count}ê°œ\n" +
+                       $"ì‹œì‘ ì‹œê°„: {DateTime.Now:yyyy-MM-dd HH:mm:ss}"
             };
 
             await SendMessageAsync(message);
@@ -36,18 +36,17 @@ namespace AutoRegressionVM.Services.Notification
 
         public async Task SendTestCompletedAsync(ScenarioResult result)
         {
-            var emoji = result.IsSuccess ? "?" : "?";
-            var status = result.IsSuccess ? "¼º°ø" : "½ÇÆĞ";
+            var status = result.IsSuccess ? "ì„±ê³µ" : "ì‹¤íŒ¨";
 
             var message = new
             {
-                text = $"{emoji} *Å×½ºÆ® ¿Ï·á - {status}*\n" +
-                       $"?? ½Ã³ª¸®¿À: {result.ScenarioName}\n" +
-                       $"?? ¼Ò¿ä½Ã°£: {result.Duration:hh\\:mm\\:ss}\n" +
-                       $"? ¼º°ø: {result.PassedCount}°³\n" +
-                       $"? ½ÇÆĞ: {result.FailedCount}°³\n" +
-                       $"?? ½ºÅµ: {result.SkippedCount}°³\n" +
-                       $"?? ¿À·ù: {result.ErrorCount}°³"
+                text = $"*í…ŒìŠ¤íŠ¸ ì™„ë£Œ - {status}*\n" +
+                       $"ì‹œë‚˜ë¦¬ì˜¤: {result.ScenarioName}\n" +
+                       $"ì†Œìš”ì‹œê°„: {result.Duration:hh\\:mm\\:ss}\n" +
+                       $"ì„±ê³µ: {result.PassedCount}ê°œ\n" +
+                       $"ì‹¤íŒ¨: {result.FailedCount}ê°œ\n" +
+                       $"ìŠ¤í‚µ: {result.SkippedCount}ê°œ\n" +
+                       $"ì˜¤ë¥˜: {result.ErrorCount}ê°œ"
             };
 
             await SendMessageAsync(message);
@@ -57,10 +56,10 @@ namespace AutoRegressionVM.Services.Notification
         {
             var message = new
             {
-                text = $"? *Å×½ºÆ® ½ÇÆĞ*\n" +
-                       $"?? Å×½ºÆ®: {result.TestStepName}\n" +
-                       $"?? VM: {result.VMName}\n" +
-                       $"? ¿À·ù: {result.ErrorMessage ?? "¾Ë ¼ö ¾øÀ½"}"
+                text = $"*í…ŒìŠ¤íŠ¸ ì‹¤íŒ¨*\n" +
+                       $"í…ŒìŠ¤íŠ¸: {result.TestStepName}\n" +
+                       $"VM: {result.VMName}\n" +
+                       $"ì›ì¸: {result.ErrorMessage ?? "ì•Œ ìˆ˜ ì—†ìŒ"}"
             };
 
             await SendMessageAsync(message);
@@ -70,7 +69,7 @@ namespace AutoRegressionVM.Services.Notification
         {
             var message = new
             {
-                text = $"?? *¿À·ù ¹ß»ı*\n{errorMessage}"
+                text = $"*ì˜¤ë¥˜ ë°œìƒ*\n{errorMessage}"
             };
 
             await SendMessageAsync(message);
@@ -82,7 +81,7 @@ namespace AutoRegressionVM.Services.Notification
             {
                 var message = new
                 {
-                    text = "?? AutoRegressionVM ¾Ë¸² Å×½ºÆ® ¸Ş½ÃÁöÀÔ´Ï´Ù."
+                    text = "AutoRegressionVM ì•Œë¦¼ í…ŒìŠ¤íŠ¸ ë©”ì‹œì§€ì…ë‹ˆë‹¤."
                 };
 
                 await SendMessageAsync(message);
@@ -94,51 +93,50 @@ namespace AutoRegressionVM.Services.Notification
             }
         }
 
-                        private async Task SendMessageAsync(object message)
-                        {
-                            if (string.IsNullOrEmpty(_webhookUrl))
-                                return;
+        private async Task SendMessageAsync(object message)
+        {
+            if (string.IsNullOrEmpty(_webhookUrl))
+                return;
 
-                            try
-                            {
-                                var json = SimpleJsonSerialize(message);
-                                var content = new StringContent(json, Encoding.UTF8, "application/json");
+            try
+            {
+                var json = SimpleJsonSerialize(message);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                                var response = await _httpClient.PostAsync(_webhookUrl, content);
-                                response.EnsureSuccessStatusCode();
-                            }
-                            catch (Exception ex)
-                            {
-                                System.Diagnostics.Debug.WriteLine($"Slack ¾Ë¸² Àü¼Û ½ÇÆĞ: {ex.Message}");
-                            }
-                        }
+                var response = await _httpClient.PostAsync(_webhookUrl, content);
+                response.EnsureSuccessStatusCode();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Slack ì•Œë¦¼ ì „ì†¡ ì‹¤íŒ¨: {ex.Message}");
+            }
+        }
 
-                        private string SimpleJsonSerialize(object obj)
-                        {
-                            // °£´ÜÇÑ ÀÍ¸í °´Ã¼¸¦ JSONÀ¸·Î º¯È¯
-                            var type = obj.GetType();
-                            var props = type.GetProperties();
-                            var sb = new StringBuilder();
-                            sb.Append("{");
-                            for (int i = 0; i < props.Length; i++)
-                            {
-                                if (i > 0) sb.Append(",");
-                                var value = props[i].GetValue(obj);
-                                sb.Append($"\"{props[i].Name}\":");
-                                if (value == null)
-                                    sb.Append("null");
-                                else if (value is string s)
-                                    sb.Append($"\"{EscapeJson(s)}\"");
-                                else
-                                    sb.Append($"\"{value}\"");
-                            }
-                            sb.Append("}");
-                            return sb.ToString();
-                        }
+        private string SimpleJsonSerialize(object obj)
+        {
+            var type = obj.GetType();
+            var props = type.GetProperties();
+            var sb = new StringBuilder();
+            sb.Append("{");
+            for (int i = 0; i < props.Length; i++)
+            {
+                if (i > 0) sb.Append(",");
+                var value = props[i].GetValue(obj);
+                sb.Append($"\"{props[i].Name}\":");
+                if (value == null)
+                    sb.Append("null");
+                else if (value is string s)
+                    sb.Append($"\"{EscapeJson(s)}\"");
+                else
+                    sb.Append($"\"{value}\"");
+            }
+            sb.Append("}");
+            return sb.ToString();
+        }
 
-                        private string EscapeJson(string s)
-                        {
-                            return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "");
-                        }
-                    }
-                }
+        private string EscapeJson(string s)
+        {
+            return s.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n", "\\n").Replace("\r", "");
+        }
+    }
+}

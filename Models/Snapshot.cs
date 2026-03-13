@@ -3,7 +3,7 @@ using System;
 namespace AutoRegressionVM.Models
 {
     /// <summary>
-    /// VM ½º³À¼¦ Á¤º¸
+    /// VM ìŠ¤ëƒ…ìƒ· ì •ë³´
     /// </summary>
     public class Snapshot
     {

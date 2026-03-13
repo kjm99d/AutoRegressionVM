@@ -1,67 +1,67 @@
 namespace AutoRegressionVM.CLI
 {
     /// <summary>
-    /// CLI ¿É¼Ç
+    /// CLI ì˜µì…˜
     /// </summary>
     public class CliOptions
     {
         /// <summary>
-        /// CLI ¸ğµå ½ÇÇà
+        /// CLI ëª¨ë“œ ì—¬ë¶€
         /// </summary>
         public bool CliMode { get; set; }
 
         /// <summary>
-        /// ½ÇÇàÇÒ ½Ã³ª¸®¿À ÀÌ¸§
+        /// ì‹¤í–‰í•  ì‹œë‚˜ë¦¬ì˜¤ ì´ë¦„
         /// </summary>
         public string ScenarioName { get; set; }
 
         /// <summary>
-        /// Æ¯Á¤ VM¿¡¼­¸¸ ½ÇÇà
+        /// íŠ¹ì • VMì—ì„œë§Œ ì‹¤í–‰
         /// </summary>
         public string VMName { get; set; }
 
         /// <summary>
-        /// º´·Ä ½ÇÇà VM ¼ö
+        /// ë³‘ë ¬ ì‹¤í–‰ VM ìˆ˜
         /// </summary>
         public int? Parallel { get; set; }
 
         /// <summary>
-        /// Ãâ·Â Çü½Ä (text, json, xml)
+        /// ì¶œë ¥ í˜•ì‹ (text, json, xml)
         /// </summary>
         public string OutputFormat { get; set; } = "text";
 
         /// <summary>
-        /// ¸®Æ÷Æ® ÀúÀå °æ·Î
+        /// ë¦¬í¬íŠ¸ ì €ì¥ ê²½ë¡œ
         /// </summary>
         public string ReportPath { get; set; }
 
         /// <summary>
-        /// Å¸ÀÓ¾Æ¿ô (ºĞ)
+        /// íƒ€ì„ì•„ì›ƒ (ë¶„)
         /// </summary>
         public int? TimeoutMinutes { get; set; }
 
         /// <summary>
-        /// ½Ã³ª¸®¿À ¸ñ·Ï Á¶È¸
+        /// ì‹œë‚˜ë¦¬ì˜¤ ëª©ë¡ ì¡°íšŒ
         /// </summary>
         public bool ListScenarios { get; set; }
 
         /// <summary>
-        /// VM ¸ñ·Ï Á¶È¸
+        /// VM ëª©ë¡ ì¡°íšŒ
         /// </summary>
         public bool ListVMs { get; set; }
 
         /// <summary>
-        /// µµ¿ò¸» Ç¥½Ã
+        /// ë„ì›€ë§ í‘œì‹œ
         /// </summary>
         public bool ShowHelp { get; set; }
 
         /// <summary>
-        /// »ó¼¼ ·Î±× Ãâ·Â
+        /// ìƒì„¸ ë¡œê·¸ ì¶œë ¥
         /// </summary>
         public bool Verbose { get; set; }
 
         /// <summary>
-        /// µå¶óÀÌ·± (½ÇÁ¦ ½ÇÇà ¾øÀÌ °ËÁõ¸¸)
+        /// ë“œë¼ì´ëŸ° (ì‹¤ì œ ì‹¤í–‰ ì—†ì´ ê²€ì¦ë§Œ)
         /// </summary>
         public bool DryRun { get; set; }
     }

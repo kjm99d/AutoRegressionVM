@@ -4,7 +4,7 @@ using System.Runtime.CompilerServices;
 namespace AutoRegressionVM.Helpers
 {
     /// <summary>
-    /// MVVM¿ë ViewModel ±âº» Å¬·¡½º
+    /// MVVMìš© ViewModel ê¸°ë³¸ í´ë˜ìŠ¤
     /// </summary>
     public abstract class ViewModelBase : INotifyPropertyChanged
     {

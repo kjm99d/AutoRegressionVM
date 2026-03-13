@@ -4,32 +4,32 @@ using AutoRegressionVM.Models;
 namespace AutoRegressionVM.Services.Notification
 {
     /// <summary>
-    /// ¾Ë¸² ¼­ºñ½º ÀÎÅÍÆäÀÌ½º
+    /// ì•Œë¦¼ ì„œë¹„ìŠ¤ ì¸í„°í˜ì´ìŠ¤
     /// </summary>
     public interface INotificationService
     {
         /// <summary>
-        /// Å×½ºÆ® ½ÃÀÛ ¾Ë¸²
+        /// í…ŒìŠ¤íŠ¸ ì‹œì‘ ì•Œë¦¼
         /// </summary>
         Task SendTestStartedAsync(TestScenario scenario);
 
         /// <summary>
-        /// Å×½ºÆ® ¿Ï·á ¾Ë¸²
+        /// í…ŒìŠ¤íŠ¸ ì™„ë£Œ ì•Œë¦¼
         /// </summary>
         Task SendTestCompletedAsync(ScenarioResult result);
 
         /// <summary>
-        /// Å×½ºÆ® ½ÇÆĞ ¾Ë¸²
+        /// í…ŒìŠ¤íŠ¸ ì‹¤íŒ¨ ì•Œë¦¼
         /// </summary>
         Task SendTestFailedAsync(TestResult result);
 
         /// <summary>
-        /// ¿À·ù ¾Ë¸²
+        /// ì˜¤ë¥˜ ì•Œë¦¼
         /// </summary>
         Task SendErrorAsync(string errorMessage);
 
         /// <summary>
-        /// ¾Ë¸² ¼³Á¤ Å×½ºÆ®
+        /// ì•Œë¦¼ ì—°ê²° í…ŒìŠ¤íŠ¸
         /// </summary>
         Task<bool> TestConnectionAsync();
     }
