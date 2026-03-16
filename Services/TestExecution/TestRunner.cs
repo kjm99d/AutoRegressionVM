@@ -636,12 +636,16 @@ namespace AutoRegressionVM.Services.TestExecution
                 }
 
                 // 4.5. 네트워크 분리 (파일 복사 완료 후)
+                bool networkDisconnected = false;
                 if (step.ForceNetworkDisconnect)
                 {
                     Log(TestLogLevel.Info, $"[{result.VMName}] 네트워크 분리 (오프라인 테스트)");
                     await DisconnectNetworkAsync(vmxPath, username, password);
+                    networkDisconnected = true;
                 }
 
+                try
+                {
                 // 5. 테스트 실행
                 ReportProgress(myStep, _totalStepCount, step.Name, result.VMName, TestProgressPhase.ExecutingTest);
                 Log(TestLogLevel.Info, $"[{result.VMName}] 테스트 실행: {step.Execution.ExecutablePath}");
@@ -674,11 +678,12 @@ namespace AutoRegressionVM.Services.TestExecution
 
                 Log(TestLogLevel.Debug, $"[{result.VMName}] 실행 완료: Exit Code={execResult.ExitCode}, 경과={stopwatch.Elapsed:hh\\:mm\\:ss}");
 
-                // 5.1. 네트워크 복원 (결과 수집 전)
-                if (step.ForceNetworkDisconnect)
+                // 5.1. 네트워크 복원 (결과 수집 전) — 정상 경로
+                if (networkDisconnected)
                 {
                     Log(TestLogLevel.Info, $"[{result.VMName}] 네트워크 복원");
                     await ReconnectNetworkAsync(vmxPath, username, password);
+                    networkDisconnected = false;
                 }
 
                 // 5.5. 실행 후 대기
@@ -782,6 +787,23 @@ namespace AutoRegressionVM.Services.TestExecution
 
                 Log(result.Status == TestResultStatus.Passed ? TestLogLevel.Info : TestLogLevel.Error,
                     $"[{result.VMName}] {step.Name}: {result.Status} (총 소요={stopwatch.Elapsed:hh\\:mm\\:ss})");
+                }
+                finally
+                {
+                    // 예외 발생 시에도 네트워크 복원 보장
+                    if (networkDisconnected)
+                    {
+                        try
+                        {
+                            Log(TestLogLevel.Info, $"[{result.VMName}] 네트워크 복원 (예외 복구)");
+                            await ReconnectNetworkAsync(vmxPath, username, password);
+                        }
+                        catch (Exception restoreEx)
+                        {
+                            Log(TestLogLevel.Error, $"[{result.VMName}] 네트워크 복원 실패 (무시): {restoreEx.Message}");
+                        }
+                    }
+                }
             }
             catch (Exception ex)
             {

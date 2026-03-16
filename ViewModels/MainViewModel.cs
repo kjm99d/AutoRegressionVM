@@ -402,6 +402,7 @@ namespace AutoRegressionVM.ViewModels
                 {
                     _testRunner.ProgressChanged -= OnProgressChanged;
                     _testRunner.LogGenerated -= OnLogGenerated;
+                    _testRunner = null;
                 }
                 IsRunning = false;
             }
@@ -851,6 +852,7 @@ namespace AutoRegressionVM.ViewModels
 
         public void Cleanup()
         {
+            _testRunner?.Cancel();
             _schedulerService.TaskTriggered -= OnScheduledTaskTriggered;
             _schedulerService.Stop();
             _elapsedTimer?.Stop();

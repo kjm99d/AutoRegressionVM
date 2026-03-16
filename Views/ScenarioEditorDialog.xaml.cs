@@ -237,6 +237,9 @@ namespace AutoRegressionVM.Views
                     await LoadSnapshotsAsync(vm.VmxPath);
                 }
 
+                // 재진입 방지: await 중 _currentStep이 바뀌었으면 중단
+                if (_currentStep != step) return;
+
                 // 저장된 스냅샷 선택
                 var snapshot = _snapshots.FirstOrDefault(s => s.Name == step.SnapshotName);
                 if (snapshot != null)

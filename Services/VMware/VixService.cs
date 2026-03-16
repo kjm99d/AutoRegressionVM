@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -14,7 +15,7 @@ namespace AutoRegressionVM.Services.VMware
     /// </summary>
     public class VixService : IVMwareService, IDisposable
     {
-        private readonly Dictionary<string, GuestCredentials> _guestCredentials = new Dictionary<string, GuestCredentials>();
+        private readonly ConcurrentDictionary<string, GuestCredentials> _guestCredentials = new ConcurrentDictionary<string, GuestCredentials>();
         private string _vmrunPath;
         private bool _isConnected;
 
@@ -215,7 +216,7 @@ namespace AutoRegressionVM.Services.VMware
                 {
                     // soft: Guest OS 정상 종료 시도
                     var result = RunVmrun($"stop \"{vmxPath}\" soft");
-                    _guestCredentials.Remove(vmxPath);
+                    _guestCredentials.TryRemove(vmxPath, out _);
                     return result.ExitCode == 0;
                 }
                 catch (Exception ex)
@@ -319,7 +320,7 @@ namespace AutoRegressionVM.Services.VMware
                 try
                 {
                     var result = RunVmrun($"revertToSnapshot \"{vmxPath}\" \"{snapshotName}\"", 120);
-                    _guestCredentials.Remove(vmxPath);
+                    _guestCredentials.TryRemove(vmxPath, out _);
                     return result.ExitCode == 0;
                 }
                 catch (Exception ex)

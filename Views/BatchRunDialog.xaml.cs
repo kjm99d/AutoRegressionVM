@@ -243,6 +243,26 @@ namespace AutoRegressionVM.Views
             }
         }
 
+        private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            if (_batchRunner.IsRunning)
+            {
+                var result = MessageBox.Show("일괄 실행이 진행 중입니다. 취소하고 닫으시겠습니까?",
+                    "확인", MessageBoxButton.YesNo, MessageBoxImage.Warning);
+
+                if (result != MessageBoxResult.Yes)
+                {
+                    e.Cancel = true;
+                    return;
+                }
+
+                _batchRunner.Cancel();
+                _elapsedTimer.Stop();
+                _batchRunner.BatchProgressChanged -= OnBatchProgress;
+                _batchRunner.LogGenerated -= OnLogGenerated;
+            }
+        }
+
         private void Close_Click(object sender, RoutedEventArgs e)
         {
             if (_batchRunner.IsRunning)

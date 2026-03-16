@@ -72,25 +72,39 @@ namespace AutoRegressionVM.Services
 
         private void Timer_Elapsed(object sender, ElapsedEventArgs e)
         {
-            var now = DateTime.Now;
-            var tasksToRun = new List<ScheduledTask>();
-
-            lock (_lock)
+            try
             {
-                foreach (var task in _tasks.Where(t => t.IsEnabled))
+                var now = DateTime.Now;
+                var tasksToRun = new List<ScheduledTask>();
+
+                lock (_lock)
                 {
-                    if (ShouldRunNow(task, now))
+                    foreach (var task in _tasks.Where(t => t.IsEnabled))
                     {
-                        tasksToRun.Add(task);
-                        task.LastRunTime = now;
-                        CalculateNextRunTime(task);
+                        if (ShouldRunNow(task, now))
+                        {
+                            tasksToRun.Add(task);
+                            task.LastRunTime = now;
+                            CalculateNextRunTime(task);
+                        }
+                    }
+                }
+
+                foreach (var task in tasksToRun)
+                {
+                    try
+                    {
+                        TaskTriggered?.Invoke(this, task);
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"[SchedulerService] TaskTriggered 이벤트 핸들러 예외 (task={task.Name}): {ex.Message}");
                     }
                 }
             }
-
-            foreach (var task in tasksToRun)
+            catch (Exception ex)
             {
-                TaskTriggered?.Invoke(this, task);
+                System.Diagnostics.Debug.WriteLine($"[SchedulerService] Timer_Elapsed 예외: {ex.Message}");
             }
         }
 

@@ -138,6 +138,8 @@ namespace AutoRegressionVM.Services.TestExecution
                                     LogGenerated?.Invoke(this, e);
                                 };
 
+                                _cts.Token.Register(() => runner.Cancel());
+
                                 var scenarioResult = await runner.RunScenarioAsync(scenarioCopy);
                                 batchResult.Result = scenarioResult;
                                 batchResult.Status = scenarioResult.IsSuccess
