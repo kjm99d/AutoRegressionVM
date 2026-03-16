@@ -86,13 +86,13 @@ namespace AutoRegressionVM.Views
             Loaded += (s, args) =>
             {
                 _isDirty = false;
-                _steps.CollectionChanged += (_, __) => _isDirty = true;
-                _filesToVM.CollectionChanged += (_, __) => _isDirty = true;
-                _resultFiles.CollectionChanged += (_, __) => _isDirty = true;
-                _testTargetFiles.CollectionChanged += (_, __) => _isDirty = true;
+                _steps.CollectionChanged += (_, __) => { if (!_isLoadingStep) _isDirty = true; };
+                _filesToVM.CollectionChanged += (_, __) => { if (!_isLoadingStep) _isDirty = true; };
+                _resultFiles.CollectionChanged += (_, __) => { if (!_isLoadingStep) _isDirty = true; };
+                _testTargetFiles.CollectionChanged += (_, __) => { if (!_isLoadingStep) _isDirty = true; };
                 txtName.TextChanged += (_, __) => _isDirty = true;
-                txtStepName.TextChanged += (_, __) => _isDirty = true;
-                txtExecPath.TextChanged += (_, __) => _isDirty = true;
+                txtStepName.TextChanged += (_, __) => { if (!_isLoadingStep) _isDirty = true; };
+                txtExecPath.TextChanged += (_, __) => { if (!_isLoadingStep) _isDirty = true; };
             };
         }
 
@@ -250,11 +250,6 @@ namespace AutoRegressionVM.Views
                     _snapshots.Add(tempSnapshot);
                     cboSnapshot.SelectedItem = tempSnapshot;
                 }
-            }
-            finally
-            {
-                _isLoadingStep = false;
-            }
 
             _filesToVM.Clear();
             foreach (var f in step.FilesToCopyToVM ?? new List<FileCopyInfo>())
@@ -295,6 +290,11 @@ namespace AutoRegressionVM.Views
 
             // 조건부 실행 로드
             LoadConditionToUI(step);
+            }
+            finally
+            {
+                _isLoadingStep = false;
+            }
         }
 
         private void LoadConditionToUI(TestStep step)
