@@ -115,6 +115,18 @@ namespace AutoRegressionVM.Views
                 return;
             }
 
+            // VMware UI 충돌 방지 경고
+            var warning = MessageBox.Show(
+                "일괄 실행 중에는 VMware Workstation UI에서\n" +
+                "VM 조작(스냅샷, 전원, 설정 변경 등)을 하지 마세요.\n\n" +
+                "동시 조작 시 .lck 파일 충돌로 실패할 수 있습니다.\n\n" +
+                "계속 진행하시겠습니까?",
+                "VMware 사용 주의",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Information);
+
+            if (warning != MessageBoxResult.OK) return;
+
             if (!int.TryParse(txtMaxVMs.Text, out int maxVMs) || maxVMs < 1)
             {
                 MessageBox.Show("동시 실행 VM 수를 1 이상으로 입력하세요.", "알림", MessageBoxButton.OK, MessageBoxImage.Warning);

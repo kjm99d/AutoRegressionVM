@@ -327,6 +327,19 @@ namespace AutoRegressionVM.ViewModels
                 if (proceed != MessageBoxResult.Yes) return;
             }
 
+            // VMware UI 충돌 방지 경고
+            var warning = MessageBox.Show(
+                "테스트 실행 중에는 VMware Workstation UI에서\n" +
+                "VM 조작(스냅샷, 전원, 설정 변경 등)을 하지 마세요.\n\n" +
+                "동시 조작 시 .lck 파일 충돌로 스냅샷 롤백 실패나\n" +
+                "VM 상태 오류가 발생할 수 있습니다.\n\n" +
+                "실행하시겠습니까?",
+                "VMware 사용 주의",
+                MessageBoxButton.OKCancel,
+                MessageBoxImage.Information);
+
+            if (warning != MessageBoxResult.OK) return;
+
             IsRunning = true;
             TestResults.Clear();
             ProgressPercent = 0;

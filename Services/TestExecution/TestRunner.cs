@@ -988,13 +988,13 @@ namespace AutoRegressionVM.Services.TestExecution
 
                 if (attempt < maxRetries)
                 {
-                    var waitSeconds = attempt * 5; // 5초, 10초 대기
-                    Log(TestLogLevel.Warning, $"[{vmName}] 스냅샷 복원 실패 (시도 {attempt}/{maxRetries}), {waitSeconds}초 후 재시도...");
+                    var waitSeconds = attempt * 10; // 10초, 20초 대기 (VMware 락 해제 대기)
+                    Log(TestLogLevel.Warning, $"[{vmName}] 스냅샷 복원 실패 (시도 {attempt}/{maxRetries}), {waitSeconds}초 후 재시도... (.lck 충돌 가능성 - VMware UI 조작을 중단하세요)");
                     await Task.Delay(waitSeconds * 1000, _cancellationTokenSource.Token);
                 }
                 else
                 {
-                    Log(TestLogLevel.Error, $"[{vmName}] 스냅샷 복원 최종 실패 ({maxRetries}회 시도): {snapshotName}");
+                    Log(TestLogLevel.Error, $"[{vmName}] 스냅샷 복원 최종 실패 ({maxRetries}회 시도): {snapshotName} - VMware UI에서 해당 VM을 조작 중이면 종료 후 재시도하세요");
                 }
             }
             return false;
