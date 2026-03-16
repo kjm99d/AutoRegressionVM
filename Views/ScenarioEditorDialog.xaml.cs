@@ -427,19 +427,22 @@ namespace AutoRegressionVM.Views
             }
         }
 
-        private void Save_Click(object sender, RoutedEventArgs e)
+        /// <summary>
+        /// 시나리오 저장 로직 (UI 닫기 동작 없음)
+        /// </summary>
+        private bool TrySave()
         {
             if (string.IsNullOrWhiteSpace(txtName.Text))
             {
                 MessageBox.Show("시나리오 이름을 입력하세요.", "오류", MessageBoxButton.OK, MessageBoxImage.Warning);
                 txtName.Focus();
-                return;
+                return false;
             }
 
             if (_steps.Count == 0)
             {
                 MessageBox.Show("최소 하나의 테스트 스텝을 추가하세요.", "오류", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                return false;
             }
 
             SaveCurrentStep();
@@ -463,7 +466,7 @@ namespace AutoRegressionVM.Views
                 var result = MessageBox.Show(msg + "\n\n그래도 저장하시겠습니까?", "유효성 경고",
                     MessageBoxButton.YesNo, MessageBoxImage.Warning);
                 if (result != MessageBoxResult.Yes)
-                    return;
+                    return false;
             }
 
             Result = new TestScenario
@@ -481,14 +484,21 @@ namespace AutoRegressionVM.Views
 
             if (_isEditing)
             {
-                // Keep original ID and creation date when editing
                 Result.Id = _existingId;
                 Result.CreatedAt = _existingCreatedAt;
             }
 
             _isSaved = true;
-            DialogResult = true;
-            Close();
+            return true;
+        }
+
+        private void Save_Click(object sender, RoutedEventArgs e)
+        {
+            if (TrySave())
+            {
+                DialogResult = true;
+                Close();
+            }
         }
 
         private void Cancel_Click(object sender, RoutedEventArgs e)
@@ -829,9 +839,12 @@ namespace AutoRegressionVM.Views
                         // 저장하지 않고 닫기
                         break;
                     case MessageBoxResult.No:
-                        // 저장 후 닫기
-                        Save_Click(sender, new RoutedEventArgs());
-                        if (!_isSaved)
+                        // 저장 후 닫기 (DialogResult/Close 없이 저장만 수행)
+                        if (TrySave())
+                        {
+                            DialogResult = true;
+                        }
+                        else
                         {
                             e.Cancel = true; // 저장 실패 또는 유효성 검증 실패
                         }
