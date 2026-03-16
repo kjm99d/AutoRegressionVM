@@ -530,6 +530,7 @@ namespace AutoRegressionVM.Views
 
             if (_vmwareService == null || !_vmwareService.IsConnected)
             {
+                _snapshots.Add(new Snapshot { Name = "(VMware 미연결 - 먼저 연결하세요)" });
                 return;
             }
 
@@ -539,14 +540,22 @@ namespace AutoRegressionVM.Views
                 btnRefreshSnapshots.Content = "...";
 
                 var snapshots = await _vmwareService.GetSnapshotsAsync(vmxPath);
-                foreach (var snapshot in snapshots)
+                if (snapshots.Count == 0)
                 {
-                    _snapshots.Add(snapshot);
+                    _snapshots.Add(new Snapshot { Name = "(스냅샷 없음)" });
+                }
+                else
+                {
+                    foreach (var snapshot in snapshots)
+                    {
+                        _snapshots.Add(snapshot);
+                    }
                 }
             }
             catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"스냅샷 로드 실패: {ex.Message}");
+                _snapshots.Add(new Snapshot { Name = $"(로드 실패: {ex.Message})" });
             }
             finally
             {
